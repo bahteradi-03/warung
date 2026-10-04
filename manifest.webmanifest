@@ -1,0 +1,16 @@
+{
+  "name": "Kasirku — Kasir & Stok",
+  "short_name": "Kasirku",
+  "description": "Aplikasi Kasir dan Manajemen Stok Toko & Warung",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192 512x512 1024x1024",
+      "type": "image/png"
+    }
+  ]
+}
