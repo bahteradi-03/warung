@@ -165,6 +165,10 @@ button{cursor:pointer}
 @keyframes vlaser{0%,100%{top:20%}50%{top:80%}}
 .reader-wrap .cam-guide{position:absolute;inset:18px;border:2px dashed rgba(255,255,255,0.45);border-radius:14px;pointer-events:none;z-index:9}
 .reader-wrap .cam-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#ffffff;font-size:12.5px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,0.9);pointer-events:none;z-index:11}
+.snap-btn{position:absolute;bottom:42px;right:12px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.92);border:3px solid #2563eb;font-size:1.6rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;box-shadow:0 2px 12px rgba(0,0,0,.35);transition:transform .1s,background .1s}
+.snap-btn:active{transform:scale(.88);background:#e0eaff}
+.snap-btn.scanning-snap{background:#ffd700;animation:snap-flash .3s ease}
+@keyframes snap-flash{0%{background:#fff}50%{background:#ffd700}100%{background:rgba(255,255,255,.92)}}
 .scan-result{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;border-radius:12px;padding:6px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:20;animation:scan-pop .22s ease}
 .scan-result-code{font-size:1.6rem;font-weight:700;letter-spacing:.18em;font-family:monospace}
 .scan-result-label{font-size:.78rem;opacity:.88;max-width:240px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -455,11 +459,12 @@ button{cursor:pointer}
             <div id="reader"></div>
             <div class="laser"></div>
             <div class="cam-guide"></div>
-            <div class="cam-hint">Arahkan garis merah ke tengah barcode</div>
+            <div class="cam-hint">Arahkan barcode ke kamera lalu tekan 📷</div>
             <div class="scan-result" id="scanResult" hidden>
               <span class="scan-result-code" id="scanResultCode"></span>
               <span class="scan-result-label" id="scanResultLabel"></span>
             </div>
+            <button class="snap-btn" id="btnSnap" type="button" title="Ambil foto & scan">📷</button>
           </div>
           <div class="scanmsg" id="scanMsg"></div>
         </div>
@@ -1358,6 +1363,89 @@ btnCamSwitch.onclick = async () => {
   await stopCam();
   setTimeout(() => startCam(nextCam.id), 250);
 };
+
+// Tombol 📷 Snap: ambil frame saat ini lalu scan dari foto (lebih akurat dari live stream)
+const btnSnap = $('#btnSnap');
+if (btnSnap) {
+  btnSnap.onclick = async () => {
+    const video = document.querySelector('#reader video');
+    if (!video || !scanning) return;
+    btnSnap.classList.add('scanning-snap');
+    btnSnap.disabled = true;
+    scanMsg.textContent = 'Menganalisa foto…';
+
+    try {
+      const w = video.videoWidth || 640, h = video.videoHeight || 480;
+      // Buat canvas HD dari frame video saat ini
+      const snapCanvas = document.createElement('canvas');
+      snapCanvas.width = w; snapCanvas.height = h;
+      const snapCtx = snapCanvas.getContext('2d');
+
+      const snapPresets = [
+        'none',
+        'contrast(2) brightness(1.05) saturate(0)',
+        'contrast(3) brightness(0.85) saturate(0)',
+        'contrast(1.6) brightness(1.2)',
+        'contrast(2.5) brightness(0.9) saturate(0) invert(1)',
+        'contrast(4) brightness(0.75) saturate(0)',
+      ];
+
+      let found = null;
+
+      // Coba dengan BarcodeDetector native dulu (semua preset)
+      if (nativeDetector) {
+        for (const filter of snapPresets) {
+          try {
+            let src;
+            if (filter === 'none') {
+              src = video;
+            } else {
+              snapCtx.filter = filter;
+              snapCtx.drawImage(video, 0, 0, w, h);
+              snapCtx.filter = 'none';
+              src = snapCanvas;
+            }
+            const res = await nativeDetector.detect(src);
+            if (res && res.length > 0 && res[0].rawValue) {
+              found = res[0].rawValue;
+              break;
+            }
+          } catch(e){}
+        }
+      }
+
+      // Fallback: Html5Qrcode scanFile (blobkan canvas)
+      if (!found) {
+        try {
+          snapCtx.filter = 'contrast(2) brightness(1.05) saturate(0)';
+          snapCtx.drawImage(video, 0, 0, w, h);
+          snapCtx.filter = 'none';
+          const blob = await new Promise(r => snapCanvas.toBlob(r, 'image/jpeg', 0.95));
+          const file = new File([blob], 'snap.jpg', {type: 'image/jpeg'});
+          if (!qr) {
+            const F = window.Html5QrcodeSupportedFormats;
+            const fmts = F ? [F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.QR_CODE] : undefined;
+            qr = new Html5Qrcode('reader', { formatsToSupport: fmts, verbose: false });
+          }
+          found = await qr.scanFile(file, true);
+        } catch(e){}
+      }
+
+      if (found) {
+        scanMsg.textContent = '';
+        onScan(found);
+      } else {
+        scanMsg.textContent = '⚠ Barcode tidak terbaca. Pastikan barcode masuk ke frame, tidak buram, dan cukup cahaya.';
+        setTimeout(() => { if(scanning) scanMsg.textContent = ''; }, 3000);
+      }
+    } catch(err) {
+      scanMsg.textContent = 'Gagal mengambil foto dari kamera.';
+    }
+
+    btnSnap.classList.remove('scanning-snap');
+    btnSnap.disabled = false;
+  };
+}
 
 if (scanFileInp) {
   scanFileInp.onchange = async e => {
