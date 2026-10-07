@@ -165,6 +165,10 @@ button{cursor:pointer}
 @keyframes vlaser{0%,100%{top:20%}50%{top:80%}}
 .reader-wrap .cam-guide{position:absolute;inset:18px;border:2px dashed rgba(255,255,255,0.45);border-radius:14px;pointer-events:none;z-index:9}
 .reader-wrap .cam-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#ffffff;font-size:12.5px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,0.9);pointer-events:none;z-index:11}
+.scan-result{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;border-radius:12px;padding:6px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:20;animation:scan-pop .22s ease}
+.scan-result-code{font-size:1.6rem;font-weight:700;letter-spacing:.18em;font-family:monospace}
+.scan-result-label{font-size:.78rem;opacity:.88;max-width:240px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes scan-pop{from{transform:translateX(-50%) scale(.7);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
 .cam-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .scanmsg{margin-top:12px;font-size:13px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 12px;border-radius:10px}
 .scanmsg:empty{display:none}
@@ -452,6 +456,10 @@ button{cursor:pointer}
             <div class="laser"></div>
             <div class="cam-guide"></div>
             <div class="cam-hint">Arahkan garis merah ke tengah barcode</div>
+            <div class="scan-result" id="scanResult" hidden>
+              <span class="scan-result-code" id="scanResultCode"></span>
+              <span class="scan-result-label" id="scanResultLabel"></span>
+            </div>
           </div>
           <div class="scanmsg" id="scanMsg"></div>
         </div>
@@ -1404,6 +1412,22 @@ if (scanFileInp) {
   };
 }
 
+let _scanResultTimer = null;
+function showScanResult(code, label, ok) {
+  const el = $('#scanResult'), codeEl = $('#scanResultCode'), lblEl = $('#scanResultLabel');
+  if (!el) return;
+  codeEl.textContent = code;
+  lblEl.textContent = label || '';
+  codeEl.style.color = ok ? '#4eff91' : '#ff6b6b';
+  el.hidden = false;
+  // Reset animasi
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
+  if (_scanResultTimer) clearTimeout(_scanResultTimer);
+  _scanResultTimer = setTimeout(() => { el.hidden = true; }, 2500);
+}
+
 function onScan(text){
   if (modalOpen) return;
   const now = Date.now();
@@ -1413,9 +1437,10 @@ function onScan(text){
   const it = findByCode(text);
   if (it) {
     addItem(it);
-    toast('✓ Berhasil scan: ' + it.nama);
+    showScanResult(text, '✓ ' + it.nama, true);
   } else {
     beep(false);
+    showScanResult(text, '⚠ Barang tidak ditemukan', false);
     showUnknown(text);
   }
 }
