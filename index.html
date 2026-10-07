@@ -1204,9 +1204,11 @@ async function startCam(deviceId){
     if (!qr) {
       const F = window.Html5QrcodeSupportedFormats;
       const formats = F ? [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE] : undefined;
+      // Jika BarcodeDetector native tersedia, nonaktifkan fitur duplikat di Html5Qrcode
+      // agar tidak ada 2 loop deteksi berjalan bersamaan
       qr = new Html5Qrcode('reader', {
         formatsToSupport: formats,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: false },
         verbose: false
       });
     }
@@ -1223,11 +1225,15 @@ async function startCam(deviceId){
       }
     }
 
-    // High quality scanning without restrictive small crop box (full frame for 1D barcodes)
+    // Jika BarcodeDetector native tersedia, Html5Qrcode hanya dipakai untuk stream kamera
+    // (fps rendah), deteksi sepenuhnya dilakukan oleh runNativeDetector() yang lebih cepat.
+    // Jika tidak tersedia, Html5Qrcode jalan penuh di fps tinggi.
+    const scanFps = nativeDetector ? 2 : 22;
+    const scanCallback = nativeDetector ? () => {} : onScan;
     await qr.start(
       cameraConfig,
       {
-        fps: 22,
+        fps: scanFps,
         aspectRatio: 1.6,
         videoConstraints: {
           width: { min: 1280, ideal: 1920 },
@@ -1235,7 +1241,7 @@ async function startCam(deviceId){
           focusMode: 'continuous'
         }
       },
-      onScan,
+      scanCallback,
       () => {}
     );
 
@@ -1272,23 +1278,20 @@ function _captureFrame(video, filter) {
   return _preCanvas;
 }
 
+// Deteksi barcode dengan 2 preset: raw dulu (cepat), kalau gagal baru contrast boost
+// Tidak pakai 5 preset karena terlalu berat per frame
 async function _detectWithPresets(video) {
-  const presets = [
-    'none',
-    'contrast(1.8) brightness(1.05)',
-    'contrast(2.5) brightness(0.9) saturate(0)',
-    'contrast(1.5) brightness(1.2) invert(1)',
-    'contrast(3) brightness(0.8) saturate(0)',
-  ];
-  for (const filter of presets) {
-    try {
-      const src = (filter === 'none') ? video : _captureFrame(video, filter);
-      const barcodes = await nativeDetector.detect(src);
-      if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-        return barcodes[0].rawValue;
-      }
-    } catch(e){}
-  }
+  // Preset 1: raw (native, paling cepat)
+  try {
+    const b1 = await nativeDetector.detect(video);
+    if (b1 && b1.length > 0 && b1[0].rawValue) return b1[0].rawValue;
+  } catch(e){}
+  // Preset 2: contrast boost (untuk plastik glossy/silau)
+  try {
+    const src = _captureFrame(video, 'contrast(2) brightness(1.05) saturate(0)');
+    const b2 = await nativeDetector.detect(src);
+    if (b2 && b2.length > 0 && b2[0].rawValue) return b2[0].rawValue;
+  } catch(e){}
   return null;
 }
 
