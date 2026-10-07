@@ -158,8 +158,14 @@ button{cursor:pointer}
 @keyframes beam{0%,100%{top:18px}50%{top:calc(100% - 21px)}}
 .hero.scanning{display:block}
 .hero.scanning .hero-text p,.hero.scanning .scanner-art{display:none}
-#reader{margin-top:14px;border-radius:14px;overflow:hidden;background:#000}
-#reader video{width:100%!important;object-fit:cover}
+.reader-wrap{position:relative;margin-top:14px;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 8px 30px rgba(0,0,0,0.25)}
+#reader{border-radius:18px;overflow:hidden;background:#000}
+#reader video{width:100%!important;max-height:420px;object-fit:cover;display:block}
+.reader-wrap .laser{position:absolute;left:8%;right:8%;height:3px;background:linear-gradient(90deg,transparent,#ef4444 25%,#ef4444 75%,transparent);box-shadow:0 0 14px 4px rgba(239,68,68,0.85);top:25%;animation:vlaser 2.2s ease-in-out infinite;pointer-events:none;z-index:10}
+@keyframes vlaser{0%,100%{top:20%}50%{top:80%}}
+.reader-wrap .cam-guide{position:absolute;inset:18px;border:2px dashed rgba(255,255,255,0.45);border-radius:14px;pointer-events:none;z-index:9}
+.reader-wrap .cam-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#ffffff;font-size:12.5px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,0.9);pointer-events:none;z-index:11}
+.cam-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .scanmsg{margin-top:12px;font-size:13px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 12px;border-radius:10px}
 .scanmsg:empty{display:none}
 
@@ -179,10 +185,19 @@ button{cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--line-strong)}
-.thumb{position:relative;aspect-ratio:4/3;border-radius:14px;background:var(--t,var(--soft));display:grid;place-items:center;color:var(--brand);border:0;width:100%;padding:0}
-.thumb .kb{position:absolute;left:8px;top:8px;background:var(--brand);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:7px}
-.thumb .lb{position:absolute;right:8px;top:8px;background:var(--red);color:#fff;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:7px}
-.thumb .pin{position:absolute;right:8px;bottom:8px;font-size:10.5px;font-weight:600;color:var(--brand);background:var(--surface);border:1px solid var(--line);padding:2px 7px;border-radius:7px}
+.thumb{position:relative;aspect-ratio:4/3;border-radius:14px;background:var(--t,var(--soft));display:grid;place-items:center;color:var(--brand);border:0;width:100%;padding:0;overflow:hidden}
+.thumb img.card-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.thumb .kb{position:absolute;left:8px;top:8px;background:var(--brand);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:7px;z-index:2}
+.thumb .lb{position:absolute;right:8px;top:8px;background:var(--red);color:#fff;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:7px;z-index:2}
+.thumb .pin{position:absolute;right:8px;bottom:8px;font-size:10.5px;font-weight:600;color:var(--brand);background:var(--surface);border:1px solid var(--line);padding:2px 7px;border-radius:7px;z-index:2}
+.row .ri img.row-img{width:100%;height:100%;object-fit:cover;border-radius:11px}
+.line .mi img.cart-img{width:100%;height:100%;object-fit:cover;border-radius:11px}
+.foto-picker{display:flex;align-items:center;gap:14px;margin:12px 0 6px;padding:12px;background:var(--soft2);border:1.5px dashed var(--line-strong);border-radius:16px}
+.foto-box{width:76px;height:76px;border-radius:14px;background:var(--surface);border:1px solid var(--line);overflow:hidden;display:grid;place-items:center;flex-shrink:0;position:relative}
+.foto-box img{width:100%;height:100%;object-fit:cover}
+.foto-placeholder{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:11px;text-align:center;padding:4px}
+.foto-actions{display:flex;flex-direction:column;gap:8px;flex:1}
+.foto-actions .btn{min-height:38px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
 .card .nm{font-weight:600;font-size:14px;line-height:1.3;margin:10px 4px 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em;color:var(--text)}
 .card .st{font-size:12px;color:var(--muted);margin:0 4px}
 .card .st.low{color:var(--red);font-weight:600}
@@ -426,8 +441,18 @@ button{cursor:pointer}
           <div class="hero-btns">
             <button class="hbtn" id="btnCam" type="button"><i data-ic="camera"></i><span>Scan pakai kamera</span></button>
             <button class="hbtn ghost" id="btnTorch" type="button" hidden><i data-ic="torch"></i><span>Senter</span></button>
+            <button class="hbtn ghost" id="btnCamSwitch" type="button" hidden title="Ganti kamera"><i data-ic="camera"></i><span>Ganti Kamera</span></button>
+            <label class="hbtn ghost" id="btnScanFile" title="Pilih foto barcode dari galeri atau kamera" style="cursor:pointer">
+              <i data-ic="camera"></i><span>Scan dari Foto</span>
+              <input type="file" id="scanFileInp" accept="image/*" hidden>
+            </label>
           </div>
-          <div id="reader" hidden></div>
+          <div class="reader-wrap" id="readerWrap" hidden>
+            <div id="reader"></div>
+            <div class="laser"></div>
+            <div class="cam-guide"></div>
+            <div class="cam-hint">Arahkan garis merah ke tengah barcode</div>
+          </div>
           <div class="scanmsg" id="scanMsg"></div>
         </div>
         <div class="scanner-art" aria-hidden="true"><div class="bars"></div><span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span><span class="beam"></span></div>
@@ -539,9 +564,35 @@ const fmtQty = (q, s) => s === 'kg' ? (String(+(+q).toFixed(3)).replace('.',',')
 const norm = c => String(c).trim().toLowerCase().replace(/^0+(?=\d)/,'');
 const isMobile = () => window.matchMedia('(max-width:899px)').matches;
 
+function compressImage(file, maxSide = 480, quality = 0.82){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h) {
+          if (w > maxSide) { h = Math.round(h * maxSide / w); w = maxSide; }
+        } else {
+          if (h > maxSide) { w = Math.round(w * maxSide / h); h = maxSide; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function seed(){
-  const mk = (kode,nama,kat,satuan,beli,jual,stok,barcodes,quick,min) =>
-    ({id:'i'+kode,kode,nama,kategori:kat,satuan,hargaBeli:beli,hargaJual:jual,stok,stokMin:min??5,barcodes:barcodes||[],quick:!!quick});
+  const mk = (kode,nama,kat,satuan,beli,jual,stok,barcodes,quick,min,foto) =>
+    ({id:'i'+kode,kode,nama,kategori:kat,satuan,hargaBeli:beli,hargaJual:jual,stok,stokMin:min??5,barcodes:barcodes||[],quick:!!quick,foto:foto||''});
   return { items:[
     mk('101','Indomie Goreng',1,'pcs',3000,3500,40,['089686010947']),
     mk('102','Indomie Soto',1,'pcs',2900,3500,24,['089686010015']),
@@ -627,14 +678,14 @@ function addItem(it, qty){
   const q = qty ?? 1;
   let line = cart.find(c => c.itemId === it.id);
   if (line) line.qty = it.satuan === 'kg' ? +(line.qty + q).toFixed(3) : line.qty + q;
-  else { line = {key:it.id,itemId:it.id,nama:it.nama,kode:it.kode,kategori:it.kategori,satuan:it.satuan,harga:it.hargaJual,hargaBeli:it.hargaBeli,qty:q}; cart.unshift(line); }
+  else { line = {key:it.id,itemId:it.id,nama:it.nama,kode:it.kode,kategori:it.kategori,satuan:it.satuan,harga:it.hargaJual,hargaBeli:it.hargaBeli,qty:q,foto:it.foto||''}; cart.unshift(line); }
   lastKey = line.key; beep(true);
   if (it.stok - line.qty < 0) toast('Stok ' + it.nama + ' tercatat habis. Cek stok fisik.', true);
   else if (isMobile()) toast(it.nama + ' masuk keranjang');
   renderCart();
 }
 function addTemp(nama, harga, qty, code){
-  const line = {key:'t'+Date.now(),itemId:null,nama,kode:'—',kategori:0,satuan:'pcs',harga,hargaBeli:0,qty:qty||1,temp:true,code};
+  const line = {key:'t'+Date.now(),itemId:null,nama,kode:'—',kategori:0,satuan:'pcs',harga,hargaBeli:0,qty:qty||1,temp:true,code,foto:''};
   cart.unshift(line); lastKey = line.key; beep(true); renderCart();
 }
 const cartTotal = () => cart.reduce((a,c) => a + c.harga * c.qty, 0);
@@ -643,7 +694,7 @@ function renderCart(){
   if (!cart.length) el.innerHTML = '<div class="empty">Keranjang masih kosong.<br>Scan barcode, ketik kode, atau ketuk tombol + pada barang.</div>';
   else el.innerHTML = cart.map(c => `
     <div class="line${c.key===lastKey?' flash':''}" data-key="${esc(c.key)}">
-      <span class="mi">${ic(c.kategori||'box',20)}</span>
+      <span class="mi">${c.foto ? `<img src="${esc(c.foto)}" alt="" class="cart-img">` : ic(c.kategori||'box',20)}</span>
       <div class="nm">${esc(c.nama)}${c.temp?'<span class="tmp">sementara</span>':''}</div>
       <div class="sub num">${rp(c.harga*c.qty)}</div>
       <div class="meta num">${rp(c.harga)}${c.satuan==='kg'?'/kg':''}</div>
@@ -764,7 +815,7 @@ function renderGrid(){
     return `<div class="card">
       <button type="button" class="thumb" style="--t:${TINT[i.kategori]||'var(--soft)'}" data-add="${esc(i.id)}" aria-label="Tambah ${esc(i.nama)}">
         <span class="kb num">${esc(i.kode)}</span>${low?'<span class="lb">Menipis</span>':''}${i.quick?'<span class="pin">Cepat</span>':''}
-        ${ic(i.kategori,46)}
+        ${i.foto ? `<img src="${esc(i.foto)}" alt="${esc(i.nama)}" class="card-img">` : ic(i.kategori,46)}
       </button>
       <div class="nm">${esc(i.nama)}</div>
       <div class="st num${low?' low':''}">Stok ${fmtQty(i.stok,i.satuan)}${(i.barcodes||[]).length?'':' · tanpa barcode'}</div>
@@ -875,6 +926,18 @@ function itemForm(it, o = {}){
   const kode = it ? it.kode : (o.kode && !findByCode(o.kode) ? o.kode : nextKode(kat));
   const bc = it ? (it.barcodes||[]).join(', ') : (o.barcode || '');
   openModal(`<h2>${isNew ? 'Barang baru' : 'Ubah data & stok barang'}</h2>
+    <div class="foto-picker">
+      <div class="foto-box" id="fBox">
+        ${(it && it.foto) ? `<img src="${esc(it.foto)}" alt="Foto produk">` : `<div class="foto-placeholder">${ic('camera', 26)}<span>Foto produk</span></div>`}
+      </div>
+      <div class="foto-actions">
+        <label class="btn ghost file-label">
+          <i data-ic="camera"></i> <span>${(it && it.foto) ? 'Ganti Foto' : 'Pilih Foto / Kamera'}</span>
+          <input type="file" id="fFoto" accept="image/*" hidden>
+        </label>
+        <button type="button" class="btn danger del-foto" id="fHapusFoto" style="${(it && it.foto) ? '' : 'display:none'};padding:8px 12px;font-size:12px;min-height:34px">Hapus Foto</button>
+      </div>
+    </div>
     <label>Nama barang<input id="fN" type="text" value="${esc(it?it.nama:o.nama||'')}" placeholder="contoh: Kopi Kapal Api sachet"></label>
     <div class="grid2">
       <label>Kategori<select id="fK">${Object.entries(KAT).map(([k,v]) => `<option value="${k}"${+k===+kat?' selected':''}>${v}</option>`).join('')}</select></label>
@@ -896,6 +959,36 @@ function itemForm(it, o = {}){
       <button class="btn primary" id="fOk" type="button">${isNew ? (o.fromKasir ? 'Simpan & masukkan' : 'Simpan barang') : 'Simpan perubahan'}</button></div>`,
   r => {
     const g = s => r.querySelector(s);
+    let curFoto = (it && it.foto) || '';
+    const fotoInp = g('#fFoto'), delFotoBtn = g('#fHapusFoto'), fBox = g('#fBox');
+    if (fotoInp) {
+      fotoInp.onchange = async e => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          fBox.innerHTML = '<span class="muted" style="font-size:11px">Memproses…</span>';
+          curFoto = await compressImage(file, 480, 0.82);
+          fBox.innerHTML = `<img src="${curFoto}" alt="Foto produk">`;
+          delFotoBtn.style.display = 'inline-flex';
+          const lbl = r.querySelector('.file-label span');
+          if (lbl) lbl.textContent = 'Ganti Foto';
+        } catch(err) {
+          fBox.innerHTML = `<div class="foto-placeholder">${ic('camera', 26)}<span>Gagal</span></div>`;
+          toast('Gagal memproses foto', true);
+        }
+      };
+    }
+    if (delFotoBtn) {
+      delFotoBtn.onclick = () => {
+        curFoto = '';
+        fBox.innerHTML = `<div class="foto-placeholder">${ic('camera', 26)}<span>Foto produk</span></div>`;
+        delFotoBtn.style.display = 'none';
+        const lbl = r.querySelector('.file-label span');
+        if (lbl) lbl.textContent = 'Pilih Foto / Kamera';
+        if (fotoInp) fotoInp.value = '';
+      };
+    }
+
     if (isNew) g('#fK').onchange = () => { g('#fC').value = nextKode(g('#fK').value); };
     setTimeout(() => g('#fN').focus(), 50);
     if (!isNew) g('#fDel').onclick = () => {
@@ -911,7 +1004,7 @@ function itemForm(it, o = {}){
       if (hj <= 0) return err('Harga jual wajib diisi.');
       const clash = [kd, ...bcs].map(c => findByCode(c)).find(x => x && x !== it);
       if (clash) return err('Kode/barcode sudah dipakai oleh "' + clash.nama + '".');
-      const data = {nama, kode:kd, kategori:Number(g('#fK').value), barcodes:bcs, satuan:g('#fS').value, hargaBeli:hb, hargaJual:hj, stokMin:num(g('#fM').value), quick:g('#fQ').checked};
+      const data = {nama, kode:kd, kategori:Number(g('#fK').value), barcodes:bcs, satuan:g('#fS').value, hargaBeli:hb, hargaJual:hj, stokMin:num(g('#fM').value), quick:g('#fQ').checked, foto:curFoto};
       let target = it;
       if (isNew) { target = {id:'i'+Date.now(), stok:num(g('#fSt').value), ...data}; S.items.push(target); if (o.pendIdx != null) S.pending.splice(o.pendIdx, 1); }
       else {
@@ -998,7 +1091,7 @@ function renderItems(){
   $('#itemCount').textContent = list.length + ' barang';
   $('#itemList').innerHTML = list.length ? list.map(i => `
     <div class="row" data-id="${esc(i.id)}">
-      <span class="ri">${ic(i.kategori,20)}</span>
+      <span class="ri">${i.foto ? `<img src="${esc(i.foto)}" alt="" class="row-img">` : ic(i.kategori,20)}</span>
       <span class="grow" data-act="edit" style="cursor:pointer">
         <div class="nm">${esc(i.nama)}</div>
         <div class="meta num"><span class="code">${esc(i.kode)}</span> ${rp(i.hargaJual)}${i.satuan==='kg'?'/kg':''} · ${(i.barcodes||[]).length ? 'barcode ' + esc(i.barcodes[0]) : 'tanpa barcode'}</div>
@@ -1067,47 +1160,261 @@ document.addEventListener('click', e => { const g = e.target.closest('[data-goto
 
 /* Camera scanner */
 let qr = null, scanning = false, torchOn = false, last = {c:'', t:0};
-const btnCam = $('#btnCam'), btnTorch = $('#btnTorch'), reader = $('#reader'), scanMsg = $('#scanMsg'), hero = $('#hero');
+let availableCameras = [], currentCamIdx = 0;
+let nativeDetector = null, detectorRaf = null;
+
+const btnCam = $('#btnCam'), btnTorch = $('#btnTorch'), btnCamSwitch = $('#btnCamSwitch');
+const readerWrap = $('#readerWrap'), reader = $('#reader'), scanMsg = $('#scanMsg'), hero = $('#hero');
+const scanFileInp = $('#scanFileInp');
+
+// Initialize native BarcodeDetector if browser supports it (Chrome / Android / Edge)
+if ('BarcodeDetector' in window) {
+  try {
+    const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
+    nativeDetector = new window.BarcodeDetector({ formats });
+  } catch(e){}
+}
+
 const camLabel = t => { btnCam.querySelector('span').textContent = t; };
 btnCam.onclick = () => scanning ? stopCam() : startCam();
-async function startCam(){
+
+async function startCam(deviceId){
   scanMsg.textContent = '';
-  if (!window.Html5Qrcode) { scanMsg.textContent = 'Pemindai gagal dimuat. Periksa koneksi, lalu muat ulang halaman. Input kode manual tetap bisa dipakai.'; return; }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { scanMsg.textContent = 'Browser ini tidak mendukung kamera. Buka di Chrome (Android) atau Safari (iPhone).'; return; }
-  hero.classList.add('scanning'); reader.hidden = false; camLabel('Menyalakan kamera…'); btnCam.disabled = true;
+  if (!window.Html5Qrcode) {
+    scanMsg.innerHTML = 'Pemindai belum siap. Periksa koneksi atau muat ulang halaman. Anda juga bisa ketik barcode di kolom pencarian atau gunakan tombol <b>Scan dari Foto</b>.';
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    scanMsg.innerHTML = 'Browser ini tidak mendukung akses kamera. Buka di Chrome atau Safari, atau gunakan tombol <b>Scan dari Foto</b>.';
+    return;
+  }
+  hero.classList.add('scanning');
+  if (readerWrap) readerWrap.hidden = false;
+  camLabel('Menyalakan kamera…');
+  btnCam.disabled = true;
+
   try {
+    try {
+      availableCameras = await Html5Qrcode.getCameras();
+      if (availableCameras && availableCameras.length > 1) {
+        btnCamSwitch.hidden = false;
+      }
+    } catch(e){}
+
     if (!qr) {
       const F = window.Html5QrcodeSupportedFormats;
       const formats = F ? [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE] : undefined;
-      qr = new Html5Qrcode('reader', {formatsToSupport: formats, experimentalFeatures:{useBarCodeDetectorIfSupported:true}, verbose:false});
+      qr = new Html5Qrcode('reader', {
+        formatsToSupport: formats,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false
+      });
     }
-    await qr.start({facingMode:'environment'},
-      {fps:12, aspectRatio:1.6, qrbox:(w,h) => ({width:Math.floor(Math.min(w*0.86,360)), height:Math.floor(Math.min(h*0.55,140))})},
-      onScan, () => {});
-    scanning = true; camLabel('Matikan kamera'); setupTorch();
+
+    let cameraConfig;
+    if (deviceId) {
+      cameraConfig = { deviceId: { exact: deviceId } };
+    } else {
+      const savedCam = localStorage.getItem('kasirku_cam_id');
+      if (savedCam && availableCameras.some(c => c.id === savedCam)) {
+        cameraConfig = { deviceId: { exact: savedCam } };
+      } else {
+        cameraConfig = { facingMode: 'environment' };
+      }
+    }
+
+    // High quality scanning without restrictive small crop box (full frame for 1D barcodes)
+    await qr.start(
+      cameraConfig,
+      {
+        fps: 22,
+        aspectRatio: 1.6,
+        videoConstraints: {
+          width: { min: 1280, ideal: 1920 },
+          height: { min: 720, ideal: 1080 },
+          focusMode: 'continuous'
+        }
+      },
+      onScan,
+      () => {}
+    );
+
+    scanning = true;
+    camLabel('Matikan kamera');
+    setupTorch();
+    runNativeDetector();
+
   } catch(e) {
-    reader.hidden = true; hero.classList.remove('scanning'); camLabel('Scan pakai kamera');
-    scanMsg.textContent = 'Kamera tidak bisa dibuka. Izinkan akses kamera untuk halaman ini, atau buka halaman langsung di Chrome/Safari. Sementara itu, ketik kode barang di kolom pencarian.';
+    console.warn('Camera start error:', e);
+    if (deviceId) {
+      localStorage.removeItem('kasirku_cam_id');
+      btnCam.disabled = false;
+      return startCam();
+    }
+    if (readerWrap) readerWrap.hidden = true;
+    hero.classList.remove('scanning');
+    camLabel('Scan pakai kamera');
+    scanMsg.innerHTML = 'Kamera tidak dapat diakses atau sedang digunakan aplikasi lain.<br><small style="opacity:0.9">1. Pastikan izin kamera telah diizinkan.<br>2. Coba tombol <b>Ganti Kamera</b> atau <b>Scan dari Foto</b> di atas.<br>3. Anda juga bisa ketik barcode di kolom pencarian.</small>';
   }
   btnCam.disabled = false;
 }
-async function stopCam(){
-  if (qr && scanning) { try { await qr.stop(); } catch(e){} }
-  scanning = false; torchOn = false; reader.hidden = true; btnTorch.hidden = true; hero.classList.remove('scanning'); camLabel('Scan pakai kamera');
+
+// Hidden canvas for preprocessing video frames (glare/reflection handling)
+const _preCanvas = document.createElement('canvas');
+const _preCtx = _preCanvas.getContext('2d');
+
+function _captureFrame(video, filter) {
+  const w = video.videoWidth || 640, h = video.videoHeight || 480;
+  _preCanvas.width = w; _preCanvas.height = h;
+  _preCtx.filter = filter;
+  _preCtx.drawImage(video, 0, 0, w, h);
+  _preCtx.filter = 'none';
+  return _preCanvas;
 }
+
+async function _detectWithPresets(video) {
+  const presets = [
+    'none',
+    'contrast(1.8) brightness(1.05)',
+    'contrast(2.5) brightness(0.9) saturate(0)',
+    'contrast(1.5) brightness(1.2) invert(1)',
+    'contrast(3) brightness(0.8) saturate(0)',
+  ];
+  for (const filter of presets) {
+    try {
+      const src = (filter === 'none') ? video : _captureFrame(video, filter);
+      const barcodes = await nativeDetector.detect(src);
+      if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+        return barcodes[0].rawValue;
+      }
+    } catch(e){}
+  }
+  return null;
+}
+
+function runNativeDetector(){
+  if (!nativeDetector) return;
+  const video = document.querySelector('#reader video');
+  if (!video) return;
+  let inProgress = false;
+  async function loop(){
+    if (!scanning || video.paused || video.ended) return;
+    if (!inProgress && video.readyState >= 2) {
+      inProgress = true;
+      try {
+        const raw = await _detectWithPresets(video);
+        if (raw) onScan(raw);
+      } catch(err){}
+      inProgress = false;
+    }
+    detectorRaf = requestAnimationFrame(loop);
+  }
+  detectorRaf = requestAnimationFrame(loop);
+}
+
+async function stopCam(){
+  if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
+  if (qr && scanning) { try { await qr.stop(); } catch(e){} }
+  scanning = false;
+  torchOn = false;
+  if (readerWrap) readerWrap.hidden = true;
+  btnTorch.hidden = true;
+  btnCamSwitch.hidden = true;
+  hero.classList.remove('scanning');
+  camLabel('Scan pakai kamera');
+}
+
 function setupTorch(){
   try {
     const t = qr.getRunningTrackCameraCapabilities().torchFeature();
-    if (t.isSupported()) { btnTorch.hidden = false; btnTorch.onclick = async () => { torchOn = !torchOn; try { await t.apply(torchOn); } catch(e){} btnTorch.setAttribute('aria-pressed', torchOn); }; }
+    if (t.isSupported()) {
+      btnTorch.hidden = false;
+      btnTorch.onclick = async () => {
+        torchOn = !torchOn;
+        try { await t.apply(torchOn); } catch(e){}
+        btnTorch.setAttribute('aria-pressed', torchOn);
+      };
+    }
   } catch(e){}
 }
+
+btnCamSwitch.onclick = async () => {
+  if (!availableCameras.length) return;
+  currentCamIdx = (currentCamIdx + 1) % availableCameras.length;
+  const nextCam = availableCameras[currentCamIdx];
+  localStorage.setItem('kasirku_cam_id', nextCam.id);
+  toast('Beralih ke: ' + (nextCam.label || ('Kamera ' + (currentCamIdx + 1))));
+  await stopCam();
+  setTimeout(() => startCam(nextCam.id), 250);
+};
+
+if (scanFileInp) {
+  scanFileInp.onchange = async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    scanMsg.textContent = 'Menganalisis barcode dari foto…';
+    try {
+      if (nativeDetector) {
+        const bmp = await createImageBitmap(file);
+        // Try multiple contrast presets for photo scan too
+        const photoPresets = [
+          'none',
+          'contrast(1.8) brightness(1.05)',
+          'contrast(2.5) brightness(0.9) saturate(0)',
+          'contrast(3) brightness(0.8) saturate(0)',
+          'contrast(1.5) brightness(1.2) invert(1)',
+        ];
+        let photoResult = null;
+        for (const filter of photoPresets) {
+          try {
+            let src = bmp;
+            if (filter !== 'none') {
+              const pc = document.createElement('canvas');
+              pc.width = bmp.width; pc.height = bmp.height;
+              const px = pc.getContext('2d');
+              px.filter = filter; px.drawImage(bmp, 0, 0); px.filter = 'none';
+              src = pc;
+            }
+            const res = await nativeDetector.detect(src);
+            if (res && res.length > 0 && res[0].rawValue) { photoResult = res[0].rawValue; break; }
+          } catch(e){}
+        }
+        if (photoResult) {
+          scanMsg.textContent = '';
+          onScan(photoResult);
+          e.target.value = '';
+          return;
+        }
+      }
+      if (!qr) {
+        const F = window.Html5QrcodeSupportedFormats;
+        const formats = F ? [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE] : undefined;
+        qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
+      }
+      const decoded = await qr.scanFile(file, true);
+      scanMsg.textContent = '';
+      onScan(decoded);
+    } catch(err) {
+      scanMsg.textContent = 'Barcode tidak terdeteksi dari foto ini. Pastikan foto jelas, tidak silau, dan seluruh garis barcode terlihat.';
+    }
+    e.target.value = '';
+  };
+}
+
 function onScan(text){
   if (modalOpen) return;
   const now = Date.now();
   if (text === last.c && now - last.t < 1800) return;
   last = {c:text, t:now};
+  beep(true);
   const it = findByCode(text);
-  if (it) addItem(it); else { beep(false); showUnknown(text); }
+  if (it) {
+    addItem(it);
+    toast('✓ Berhasil scan: ' + it.nama);
+  } else {
+    beep(false);
+    showUnknown(text);
+  }
 }
 
 /* Views */
