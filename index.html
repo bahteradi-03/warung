@@ -160,9 +160,7 @@ button{cursor:pointer}
 .hero.scanning{display:block}
 .hero.scanning .hero-text p,.hero.scanning .scanner-art{display:none}
 .reader-wrap{position:relative;margin-top:14px;border-radius:20px;overflow:hidden;background:#050505;box-shadow:0 10px 32px rgba(0,0,0,0.3);width:100%;height:320px;max-height:60vh}
-#scanVideo{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-.engine-badge{position:absolute;top:10px;left:12px;background:rgba(15,23,42,0.84);backdrop-filter:blur(6px);color:#e2e8f0;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:6px;z-index:15;cursor:pointer;pointer-events:auto;border:1px solid rgba(255,255,255,0.16);transition:all .15s ease}
-.engine-badge:hover{background:rgba(30,41,59,0.96);border-color:rgba(255,255,255,0.35);transform:scale(1.02)}
+.engine-badge{position:absolute;top:10px;left:12px;background:rgba(15,23,42,0.8);backdrop-filter:blur(6px);color:#e2e8f0;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:6px;z-index:15;pointer-events:none;border:1px solid rgba(255,255,255,0.12)}
 .engine-badge .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:pdot 1.4s infinite}
 @keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
 .vf-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:8}
@@ -470,11 +468,10 @@ button{cursor:pointer}
               <i data-ic="camera"></i><span>Scan dari Foto</span>
               <input type="file" id="scanFileInp" accept="image/*" hidden>
             </label>
-            <button class="hbtn ghost" id="btnEngineSwitch" type="button" title="Pilihan Engine Scanner & Live Benchmark"><i data-ic="cpu"></i><span>Engine & Uji</span></button>
           </div>
           <div class="reader-wrap" id="readerWrap" hidden>
             <video id="scanVideo" autoplay playsinline muted></video>
-            <div class="engine-badge" id="engineBadge" title="Klik untuk opsi engine scanner & uji benchmark"><span class="dot"></span><span id="engineName">Scanner Siap</span></div>
+            <div class="engine-badge" id="engineBadge"><span class="dot"></span><span id="engineName">Scanner Siap</span></div>
             <div class="vf-overlay">
               <div class="vf-box" id="vfBox">
                 <div class="vf-laser"></div>
@@ -1238,7 +1235,6 @@ const SAME_CODE_COOLDOWN = 1200; // ms: cooldown only for the exact same barcode
 const btnCam = $('#btnCam');
 const btnTorch = $('#btnTorch');
 const btnCamSwitch = $('#btnCamSwitch');
-const btnEngineSwitch = $('#btnEngineSwitch');
 const btnSnap = $('#btnSnap');
 const btnManualCode = $('#btnManualCode');
 const scanFileInp = $('#scanFileInp');
@@ -1321,14 +1317,6 @@ function getZXingMultiReader() {
 const camLabel = t => { btnCam.querySelector('span').textContent = t; };
 
 btnCam.onclick = () => scanning ? stopCam() : startCam();
-
-if (btnEngineSwitch) {
-  btnEngineSwitch.onclick = () => openEngineBenchmarkModal();
-}
-
-if (engineBadge) {
-  engineBadge.onclick = () => openEngineBenchmarkModal();
-}
 
 if (btnManualCode) {
   btnManualCode.onclick = () => {
@@ -2074,279 +2062,6 @@ function onScan(rawText) {
   }
 
   isProcessingItem = false;
-}
-
-/* ==========================================================================
-   ENGINE BENCHMARK & SETTINGS MODAL
-   ========================================================================== */
-
-function openEngineBenchmarkModal() {
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  const currentPref = localStorage.getItem('kasirku_ios_engine') || 'zbar';
-  
-  let activeName = 'Memeriksa…';
-  if (currentEngine === 'native') activeName = '⚡ Native BarcodeDetector (Hardware)';
-  else if (currentEngine === 'zbar') activeName = '🚀 ZBar WebAssembly (Turbo)';
-  else if (currentEngine === 'zxing') activeName = '⚙️ ZXing Turbo (Fallback)';
-  else activeName = isAndroid ? '⚡ Native BarcodeDetector' : (currentPref === 'zbar' ? '🚀 ZBar WebAssembly' : '⚙️ ZXing Turbo');
-
-  const html = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <h2 style="margin:0;font-size:18px">⚙️ Engine Scanner & Benchmark</h2>
-      <button class="btn-act" type="button" data-close title="Tutup">${ic('close', 20)}</button>
-    </div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-      Pilih teknologi decoding barcode dan jalankan uji kecepatan langsung di perangkat Anda.
-    </p>
-
-    <div style="background:var(--soft2);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:14px;font-size:13px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span style="color:var(--muted)">Platform:</span>
-        <b>${navigator.platform || (isAndroid ? 'Android' : 'iOS/Apple')}</b>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span style="color:var(--muted)">Engine Aktif:</span>
-        <b style="color:var(--brand)">${activeName}</b>
-      </div>
-      <div style="display:flex;justify-content:space-between">
-        <span style="color:var(--muted)">Lisensi Komersial:</span>
-        <span style="color:var(--green);font-weight:600">✓ 100% Bebas Lisensi & Gratis</span>
-      </div>
-    </div>
-
-    <div style="margin-bottom:14px">
-      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Pilih Engine Pembaca (iOS Safari & Mac):</label>
-      
-      <label class="opt" style="cursor:pointer;margin-top:0;margin-bottom:10px;border-color:${currentPref === 'zbar' ? 'var(--brand)' : 'var(--line)'};background:${currentPref === 'zbar' ? 'var(--brand-light)' : 'var(--surface)'}">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <input type="radio" name="opt_engine" value="zbar" ${currentPref === 'zbar' ? 'checked' : ''} style="margin-top:4px;width:auto">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <b>🚀 ZBar WebAssembly (WASM Turbo)</b>
-              <span style="font-size:10.5px;background:#22c55e;color:#fff;padding:1px 6px;border-radius:6px;font-weight:600">Direkomendasikan</span>
-            </div>
-            <span style="font-size:12px;display:block;margin-top:2px;color:var(--text)">
-              Kompilasi C/WASM secepat kilat (~12ms). 6.3x lebih hemat CPU & baterai di iPhone 8 Plus & Mac Air M1.
-            </span>
-            <small style="color:var(--muted);font-size:11px;display:block;margin-top:2px">Lisensi: LGPL-2.1+ (Open Source, 100% Bebas untuk POS Komersial)</small>
-          </div>
-        </div>
-      </label>
-
-      <label class="opt" style="cursor:pointer;margin-top:0;border-color:${currentPref === 'zxing' ? 'var(--brand)' : 'var(--line)'};background:${currentPref === 'zxing' ? 'var(--brand-light)' : 'var(--surface)'}">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <input type="radio" name="opt_engine" value="zxing" ${currentPref === 'zxing' ? 'checked' : ''} style="margin-top:4px;width:auto">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <b>⚙️ ZXing Turbo (Dual Binarizers)</b>
-              <span style="font-size:10.5px;background:var(--soft);color:var(--muted);padding:1px 6px;border-radius:6px;font-weight:600">Fallback</span>
-            </div>
-            <span style="font-size:12px;display:block;margin-top:2px;color:var(--text)">
-              Engine JavaScript murni dengan binarizer bergantian. Dipakai sebagai cadangan jika WebAssembly tidak aktif.
-            </span>
-            <small style="color:var(--muted);font-size:11px;display:block;margin-top:2px">Lisensi: Apache-2.0 (Open Source, 100% Bebas Komersial)</small>
-          </div>
-        </div>
-      </label>
-    </div>
-
-    <div style="border-top:1px dashed var(--line);padding-top:14px;margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <label style="font-size:13px;font-weight:600;margin:0">Uji Kecepatan Nyata (Live Benchmark):</label>
-        <button class="btn ghost" id="btnRunBench" type="button" style="min-height:34px;padding:6px 12px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px">
-          <i data-ic="cpu"></i><span>Mulai Tes</span>
-        </button>
-      </div>
-      <div id="benchResults" style="font-size:12.5px;color:var(--muted)">
-        Tekan tombol <b>Mulai Tes</b> untuk mengukur perbandingan kecepatan ZBar WASM vs ZXing secara langsung pada browser perangkat Anda.
-      </div>
-    </div>
-
-    <div class="actions" style="margin-top:20px">
-      <button class="btn primary" type="button" data-close>Selesai</button>
-    </div>
-  `;
-
-  openModal(html, sheet => {
-    sheet.querySelectorAll('input[name="opt_engine"]').forEach(radio => {
-      radio.onchange = () => {
-        const val = radio.value;
-        localStorage.setItem('kasirku_ios_engine', val);
-        toast('Engine disimpan: ' + (val === 'zbar' ? 'ZBar WASM Turbo' : 'ZXing Turbo'));
-        if (scanning && currentEngine !== 'native') {
-          if (val === 'zbar') startZBarEngine();
-          else startZXingEngine();
-        }
-        sheet.querySelectorAll('input[name="opt_engine"]').forEach(r => {
-          const card = r.closest('.opt');
-          if (card) {
-            card.style.borderColor = r.checked ? 'var(--brand)' : 'var(--line)';
-            card.style.background = r.checked ? 'var(--brand-light)' : 'var(--surface)';
-          }
-        });
-      };
-    });
-
-    const btnRunBench = sheet.querySelector('#btnRunBench');
-    if (btnRunBench) {
-      btnRunBench.onclick = () => runLiveEngineBenchmark(sheet);
-    }
-  });
-}
-
-async function runLiveEngineBenchmark(sheet) {
-  const resDiv = sheet.querySelector('#benchResults');
-  const btnRun = sheet.querySelector('#btnRunBench');
-  if (!resDiv) return;
-  if (btnRun) { btnRun.disabled = true; btnRun.textContent = 'Menguji…'; }
-
-  resDiv.innerHTML = '<div style="padding:12px;text-align:center;color:var(--brand)">⏳ Menjalankan 10 iterasi uji decode EAN-13 dan pencarian frame kosong…</div>';
-
-  try {
-    // 1. Generate Synthetic EAN-13 Barcode on Offscreen Canvas (480x140)
-    function calcCheck(s) {
-      let sum = 0;
-      for (let i = 0; i < 12; i++) sum += parseInt(s[i], 10) * (i % 2 === 0 ? 1 : 3);
-      return (10 - (sum % 10)) % 10;
-    }
-    const L_P = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
-    const G_P = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
-    const R_P = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
-    const PAR = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
-
-    const code12 = '899275321111';
-    const fullCode = code12 + calcCheck(code12);
-    const p = PAR[parseInt(fullCode[0], 10)];
-    let bits = '0000000000000101';
-    for (let i = 1; i <= 6; i++) {
-      const d = parseInt(fullCode[i], 10);
-      bits += (p[i - 1] === 'L' ? L_P[d] : G_P[d]);
-    }
-    bits += '01010';
-    for (let i = 7; i <= 12; i++) bits += R_P[parseInt(fullCode[i], 10)];
-    bits += '1010000000000000';
-
-    const bCanvas = document.createElement('canvas');
-    bCanvas.width = 480; bCanvas.height = 140;
-    const bCtx = bCanvas.getContext('2d');
-    bCtx.fillStyle = '#ffffff';
-    bCtx.fillRect(0, 0, 480, 140);
-    bCtx.fillStyle = '#000000';
-    const mw = 3;
-    const startX = Math.round((480 - bits.length * mw) / 2);
-    for (let i = 0; i < bits.length; i++) {
-      if (bits[i] === '1') bCtx.fillRect(startX + i * mw, 20, mw, 100);
-    }
-    const eanImgData = bCtx.getImageData(0, 0, 480, 140);
-
-    // Empty/noisy frame canvas (simulating background scan)
-    const eCanvas = document.createElement('canvas');
-    eCanvas.width = 480; eCanvas.height = 140;
-    const eCtx = eCanvas.getContext('2d');
-    eCtx.fillStyle = '#f0f2f5';
-    eCtx.fillRect(0, 0, 480, 140);
-    const emptyImgData = eCtx.getImageData(0, 0, 480, 140);
-
-    // Yield thread to let UI render loading state
-    await new Promise(r => setTimeout(r, 60));
-
-    // Test ZBar WASM
-    let zHits = 0, zEanTime = 0, zEmptyTime = 0;
-    if (typeof window.zbarWasm !== 'undefined') {
-      await window.zbarWasm.scanImageData(eanImgData); // warmup
-      const t0 = performance.now();
-      for (let i = 0; i < 10; i++) {
-        const res = await window.zbarWasm.scanImageData(eanImgData);
-        if (res && res.length > 0) zHits++;
-      }
-      zEanTime = (performance.now() - t0) / 10;
-
-      const t1 = performance.now();
-      for (let i = 0; i < 10; i++) {
-        await window.zbarWasm.scanImageData(emptyImgData);
-      }
-      zEmptyTime = (performance.now() - t1) / 10;
-    }
-
-    // Test ZXing Turbo
-    let xHits = 0, xEanTime = 0, xEmptyTime = 0;
-    if (typeof window.ZXing !== 'undefined') {
-      const reader = getZXingMultiReader();
-      const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(bCanvas);
-      const bm = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lum));
-      const t2 = performance.now();
-      for (let i = 0; i < 10; i++) {
-        try {
-          const res = reader.decode(bm);
-          if (res && res.getText()) xHits++;
-        } catch (e) {}
-      }
-      xEanTime = (performance.now() - t2) / 10;
-
-      const lumEmpty = new window.ZXing.HTMLCanvasElementLuminanceSource(eCanvas);
-      const bmEmpty = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lumEmpty));
-      const t3 = performance.now();
-      for (let i = 0; i < 10; i++) {
-        try {
-          reader.decode(bmEmpty);
-        } catch (e) {}
-      }
-      xEmptyTime = (performance.now() - t3) / 10;
-    }
-
-    const speedup = zEmptyTime > 0 ? (xEmptyTime / zEmptyTime).toFixed(1) : '6.3';
-
-    resDiv.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
-        <div style="background:var(--surface);border:1.5px solid #22c55e;border-radius:14px;padding:12px;box-shadow:var(--shadow)">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <b style="color:var(--text);font-size:13.5px">🚀 ZBar WebAssembly (WASM)</b>
-            <span style="font-size:11px;background:#22c55e;color:#fff;padding:2px 7px;border-radius:6px;font-weight:600">Rekomendasi</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-            <div style="background:var(--soft2);padding:8px;border-radius:8px">
-              <span style="color:var(--muted);display:block">Deteksi Barcode EAN-13:</span>
-              <b style="font-size:15px;color:var(--brand)">${zEanTime.toFixed(1)} ms</b>
-              <small style="color:var(--green);display:block">✓ Sukses ${zHits}/10</small>
-            </div>
-            <div style="background:var(--soft2);padding:8px;border-radius:8px">
-              <span style="color:var(--muted);display:block">Pencarian Frame Kosong:</span>
-              <b style="font-size:15px;color:#16a34a">${zEmptyTime.toFixed(1)} ms</b>
-              <small style="color:var(--muted);display:block">Sangat hemat CPU</small>
-            </div>
-          </div>
-        </div>
-
-        <div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <b style="color:var(--text);font-size:13.5px">⚙️ ZXing Turbo (Pure JS)</b>
-            <span style="font-size:11px;background:var(--soft);color:var(--muted);padding:2px 7px;border-radius:6px;font-weight:600">Fallback</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-            <div style="background:var(--soft2);padding:8px;border-radius:8px">
-              <span style="color:var(--muted);display:block">Deteksi Barcode EAN-13:</span>
-              <b style="font-size:15px;color:var(--brand)">${xEanTime.toFixed(1)} ms</b>
-              <small style="color:var(--green);display:block">✓ Sukses ${xHits}/10</small>
-            </div>
-            <div style="background:var(--soft2);padding:8px;border-radius:8px">
-              <span style="color:var(--muted);display:block">Pencarian Frame Kosong:</span>
-              <b style="font-size:15px;color:var(--text)">${xEmptyTime.toFixed(1)} ms</b>
-              <small style="color:var(--muted);display:block">Beban CPU lebih tinggi</small>
-            </div>
-          </div>
-        </div>
-
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px;font-size:12px;color:#1e40af">
-          💡 <b>Hasil Pengujian Perangkat Anda:</b><br>
-          ZBar WASM <b>${speedup}× lebih cepat</b> saat menyisir frame kamera. Mengurangi panas CPU dan baterai secara signifikan pada iPhone 8 Plus & Mac Air M1.
-        </div>
-      </div>
-    `;
-  } catch (err) {
-    resDiv.innerHTML = '<div style="color:var(--red)">Gagal menjalankan benchmark: ' + err.message + '</div>';
-  } finally {
-    if (btnRun) { btnRun.disabled = false; btnRun.textContent = 'Mulai Tes'; }
-  }
 }
 
 /* Views */
