@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="zxing.min.js"></script>
 <style>
 :root, :root[data-theme="light"]{
   --bg:#f8fafc;
@@ -158,21 +158,35 @@ button{cursor:pointer}
 @keyframes beam{0%,100%{top:18px}50%{top:calc(100% - 21px)}}
 .hero.scanning{display:block}
 .hero.scanning .hero-text p,.hero.scanning .scanner-art{display:none}
-.reader-wrap{position:relative;margin-top:14px;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 8px 30px rgba(0,0,0,0.25)}
-#reader{border-radius:18px;overflow:hidden;background:#000}
-#reader video{width:100%!important;max-height:420px;object-fit:cover;display:block}
-.reader-wrap .laser{position:absolute;left:8%;right:8%;height:3px;background:linear-gradient(90deg,transparent,#ef4444 25%,#ef4444 75%,transparent);box-shadow:0 0 14px 4px rgba(239,68,68,0.85);top:25%;animation:vlaser 2.2s ease-in-out infinite;pointer-events:none;z-index:10}
-@keyframes vlaser{0%,100%{top:20%}50%{top:80%}}
-.reader-wrap .cam-guide{position:absolute;inset:18px;border:2px dashed rgba(255,255,255,0.45);border-radius:14px;pointer-events:none;z-index:9}
-.reader-wrap .cam-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#ffffff;font-size:12.5px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,0.9);pointer-events:none;z-index:11}
-.snap-btn{position:absolute;bottom:42px;right:12px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.92);border:3px solid #2563eb;font-size:1.6rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;box-shadow:0 2px 12px rgba(0,0,0,.35);transition:transform .1s,background .1s}
+.reader-wrap{position:relative;margin-top:14px;border-radius:20px;overflow:hidden;background:#050505;box-shadow:0 10px 32px rgba(0,0,0,0.3);width:100%;height:320px;max-height:60vh}
+#scanVideo{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.engine-badge{position:absolute;top:10px;left:12px;background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);color:#e2e8f0;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:6px;z-index:15;pointer-events:none;border:1px solid rgba(255,255,255,0.12)}
+.engine-badge .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:pdot 1.4s infinite}
+@keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
+.vf-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:8}
+.vf-box{position:relative;width:82%;max-width:360px;height:140px;border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.48);border:2px solid rgba(255,255,255,0.85);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.vf-box.detected{border-color:#22c55e!important;box-shadow:0 0 0 9999px rgba(0,0,0,0.38),0 0 24px 6px rgba(34,197,94,0.9);transform:scale(1.02)}
+.vf-corners{position:absolute;inset:-2px;pointer-events:none}
+.vf-c{position:absolute;width:18px;height:18px;border-color:#fff;border-style:solid}
+.vf-c1{top:-2px;left:-2px;border-width:4px 0 0 4px;border-top-left-radius:16px}
+.vf-c2{top:-2px;right:-2px;border-width:4px 4px 0 0;border-top-right-radius:16px}
+.vf-c3{bottom:-2px;left:-2px;border-width:0 0 4px 4px;border-bottom-left-radius:16px}
+.vf-c4{bottom:-2px;right:-2px;border-width:0 4px 4px 0;border-bottom-right-radius:16px}
+.vf-box.detected .vf-c{border-color:#22c55e}
+.vf-laser{position:absolute;left:4px;right:4px;height:2.5px;background:linear-gradient(90deg,transparent,#ef4444 20%,#ef4444 80%,transparent);box-shadow:0 0 10px 3px rgba(239,68,68,0.85);top:15%;animation:vf-sweep 2s ease-in-out infinite alternate;pointer-events:none}
+.vf-box.detected .vf-laser{background:linear-gradient(90deg,transparent,#22c55e 20%,#22c55e 80%,transparent);box-shadow:0 0 14px 4px rgba(34,197,94,0.95)}
+@keyframes vf-sweep{0%{top:12%}100%{top:86%}}
+.cam-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#ffffff;font-size:11.5px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.85);pointer-events:none;z-index:12;display:flex;align-items:center;justify-content:center;gap:6px}
+.cam-hint button{pointer-events:auto;background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.45);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;cursor:pointer}
+.cam-hint button:hover{background:rgba(255,255,255,0.38)}
+.snap-btn{position:absolute;bottom:28px;right:12px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.94);border:2.5px solid var(--brand);font-size:1.4rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:22;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:transform .1s,background .1s}
 .snap-btn:active{transform:scale(.88);background:#e0eaff}
 .snap-btn.scanning-snap{background:#ffd700;animation:snap-flash .3s ease}
 @keyframes snap-flash{0%{background:#fff}50%{background:#ffd700}100%{background:rgba(255,255,255,.92)}}
-.scan-result{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;border-radius:12px;padding:6px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:20;animation:scan-pop .22s ease}
-.scan-result-code{font-size:1.6rem;font-weight:700;letter-spacing:.18em;font-family:monospace}
-.scan-result-label{font-size:.78rem;opacity:.88;max-width:240px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@keyframes scan-pop{from{transform:translateX(-50%) scale(.7);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+.scan-result{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.92);backdrop-filter:blur(6px);color:#fff;border-radius:14px;padding:8px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:25;border:1px solid rgba(255,255,255,0.14);box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:scan-pop .2s ease;max-width:90%}
+.scan-result-code{font-size:1.45rem;font-weight:700;letter-spacing:.14em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.scan-result-label{font-size:12px;opacity:.9;max-width:240px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes scan-pop{from{transform:translateX(-50%) scale(.75);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
 .cam-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .scanmsg{margin-top:12px;font-size:13px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 12px;border-radius:10px}
 .scanmsg:empty{display:none}
@@ -456,10 +470,23 @@ button{cursor:pointer}
             </label>
           </div>
           <div class="reader-wrap" id="readerWrap" hidden>
-            <div id="reader"></div>
-            <div class="laser"></div>
-            <div class="cam-guide"></div>
-            <div class="cam-hint">Arahkan barcode ke kamera lalu tekan 📷</div>
+            <video id="scanVideo" autoplay playsinline muted></video>
+            <div class="engine-badge" id="engineBadge"><span class="dot"></span><span id="engineName">Scanner Siap</span></div>
+            <div class="vf-overlay">
+              <div class="vf-box" id="vfBox">
+                <div class="vf-laser"></div>
+                <div class="vf-corners">
+                  <span class="vf-c vf-c1"></span>
+                  <span class="vf-c vf-c2"></span>
+                  <span class="vf-c vf-c3"></span>
+                  <span class="vf-c vf-c4"></span>
+                </div>
+              </div>
+            </div>
+            <div class="cam-hint" id="camHint">
+              <span>Arahkan garis merah ke barcode</span>
+              <button type="button" id="btnManualCode">Ketik manual</button>
+            </div>
             <div class="scan-result" id="scanResult" hidden>
               <span class="scan-result-code" id="scanResultCode"></span>
               <span class="scan-result-label" id="scanResultLabel"></span>
@@ -1171,166 +1198,274 @@ $('#trxList').addEventListener('click', e => { const b = e.target.closest('.row'
 $('#btnReset').onclick = () => { if (confirm('Hapus semua transaksi dan perubahan, lalu kembali ke data contoh?')) { S = seed(); save(); cart = []; renderAll(); toast('Data contoh dipulihkan'); } };
 document.addEventListener('click', e => { const g = e.target.closest('[data-goto]'); if (g) switchView(g.dataset.goto); });
 
-/* Camera scanner */
-let qr = null, scanning = false, torchOn = false, last = {c:'', t:0};
-let availableCameras = [], currentCamIdx = 0;
-let nativeDetector = null, detectorRaf = null;
+/* ==========================================================================
+   HYBRID BARCODE SCANNER ENGINE (Native BarcodeDetector + ZXing Fallback)
+   ========================================================================== */
 
-const btnCam = $('#btnCam'), btnTorch = $('#btnTorch'), btnCamSwitch = $('#btnCamSwitch');
-const readerWrap = $('#readerWrap'), reader = $('#reader'), scanMsg = $('#scanMsg'), hero = $('#hero');
+let scanning = false;
+let currentStream = null;
+let currentDeviceId = null;
+let currentEngine = null; // 'native' | 'zxing'
+let nativeDetector = null;
+let zxingReader = null;
+let detectorRaf = null;
+let isDecoding = false;
+let consecutiveErrors = 0;
+let torchOn = false;
+let availableCameras = [];
+let currentCamIdx = 0;
+
+// Deduplication state machine
+let lastScannedCode = '';
+let lastScannedTime = 0;
+let isProcessingItem = false;
+const SAME_CODE_COOLDOWN = 1200; // ms: cooldown only for the exact same barcode
+
+// UI Elements
+const btnCam = $('#btnCam');
+const btnTorch = $('#btnTorch');
+const btnCamSwitch = $('#btnCamSwitch');
+const btnSnap = $('#btnSnap');
+const btnManualCode = $('#btnManualCode');
 const scanFileInp = $('#scanFileInp');
+const readerWrap = $('#readerWrap');
+const scanVideo = $('#scanVideo');
+const scanMsg = $('#scanMsg');
+const hero = $('#hero');
+const engineBadge = $('#engineBadge');
+const engineName = $('#engineName');
+const vfBox = $('#vfBox');
+const scanResult = $('#scanResult');
+const scanResultCode = $('#scanResultCode');
+const scanResultLabel = $('#scanResultLabel');
 
-// Initialize native BarcodeDetector if browser supports it (Chrome / Android / Edge)
-if ('BarcodeDetector' in window) {
+const TARGET_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
+
+// Check if Native BarcodeDetector is fully supported and supports EAN-13
+async function checkNativeSupport() {
+  if (typeof window.BarcodeDetector !== 'function') return false;
   try {
-    const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
-    nativeDetector = new window.BarcodeDetector({ formats });
-  } catch(e){}
+    const formats = await window.BarcodeDetector.getSupportedFormats();
+    return Array.isArray(formats) && formats.includes('ean_13');
+  } catch (e) {
+    return false;
+  }
+}
+
+// Initialize ZXing reader instance with optimized hints
+function getZXingReader() {
+  if (zxingReader) return zxingReader;
+  if (typeof window.ZXing === 'undefined') return null;
+  const hints = new Map();
+  hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    window.ZXing.BarcodeFormat.EAN_13,
+    window.ZXing.BarcodeFormat.EAN_8,
+    window.ZXing.BarcodeFormat.UPC_A,
+    window.ZXing.BarcodeFormat.UPC_E,
+    window.ZXing.BarcodeFormat.CODE_128,
+    window.ZXing.BarcodeFormat.CODE_39,
+    window.ZXing.BarcodeFormat.QR_CODE
+  ]);
+  // 80ms interval keeps CPU low while feeling instantaneous
+  zxingReader = new window.ZXing.BrowserMultiFormatReader(hints, 80);
+  return zxingReader;
 }
 
 const camLabel = t => { btnCam.querySelector('span').textContent = t; };
+
 btnCam.onclick = () => scanning ? stopCam() : startCam();
 
-async function startCam(deviceId){
+if (btnManualCode) {
+  btnManualCode.onclick = () => {
+    const q = $('#q');
+    if (q) {
+      q.focus();
+      q.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('Ketik barcode atau kode barang di kolom pencarian');
+    }
+  };
+}
+
+// Start camera stream and scanner engine
+async function startCam(deviceId) {
   scanMsg.textContent = '';
-  if (!window.Html5Qrcode) {
-    scanMsg.innerHTML = 'Pemindai belum siap. Periksa koneksi atau muat ulang halaman. Anda juga bisa ketik barcode di kolom pencarian atau gunakan tombol <b>Scan dari Foto</b>.';
-    return;
-  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    scanMsg.innerHTML = 'Browser ini tidak mendukung akses kamera. Buka di Chrome atau Safari, atau gunakan tombol <b>Scan dari Foto</b>.';
+    scanMsg.innerHTML = 'Browser ini tidak mendukung akses kamera.<br><small>Buka di Google Chrome atau Safari via HTTPS, atau gunakan tombol <b>Scan dari Foto</b>.</small>';
     return;
   }
+
   hero.classList.add('scanning');
   if (readerWrap) readerWrap.hidden = false;
   camLabel('Menyalakan kamera…');
   btnCam.disabled = true;
 
   try {
+    // Stop any existing stream cleanly before opening new one
+    stopScannerStreams();
+
+    // Enumerate available cameras
     try {
-      availableCameras = await Html5Qrcode.getCameras();
-      if (availableCameras && availableCameras.length > 1) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      availableCameras = devices.filter(d => d.kind === 'videoinput');
+      if (availableCameras.length > 1) {
         btnCamSwitch.hidden = false;
       }
-    } catch(e){}
+    } catch (e) {}
 
-    if (!qr) {
-      const F = window.Html5QrcodeSupportedFormats;
-      const formats = F ? [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE] : undefined;
-      // Jika BarcodeDetector native tersedia, nonaktifkan fitur duplikat di Html5Qrcode
-      // agar tidak ada 2 loop deteksi berjalan bersamaan
-      qr = new Html5Qrcode('reader', {
-        formatsToSupport: formats,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: false },
-        verbose: false
-      });
-    }
-
-    let cameraConfig;
-    if (deviceId) {
-      cameraConfig = { deviceId: { exact: deviceId } };
-    } else {
+    let chosenDeviceId = deviceId;
+    if (!chosenDeviceId) {
       const savedCam = localStorage.getItem('kasirku_cam_id');
       if (savedCam && availableCameras.some(c => c.id === savedCam)) {
-        cameraConfig = { deviceId: { exact: savedCam } };
-      } else {
-        cameraConfig = { facingMode: 'environment' };
+        chosenDeviceId = savedCam;
       }
     }
 
-    // Jika BarcodeDetector native tersedia, Html5Qrcode hanya dipakai untuk stream kamera
-    // (fps rendah), deteksi sepenuhnya dilakukan oleh runNativeDetector() yang lebih cepat.
-    // Jika tidak tersedia, Html5Qrcode jalan penuh di fps tinggi.
-    const scanFps = nativeDetector ? 2 : 22;
-    const scanCallback = nativeDetector ? () => {} : onScan;
-    await qr.start(
-      cameraConfig,
-      {
-        fps: scanFps,
-        aspectRatio: 1.6,
-        videoConstraints: {
-          width: { min: 1280, ideal: 1920 },
-          height: { min: 720, ideal: 1080 },
-          focusMode: 'continuous'
-        }
-      },
-      scanCallback,
-      () => {}
-    );
+    const videoConstraints = {
+      width: { ideal: 1280, min: 640 },
+      height: { ideal: 720, min: 480 },
+      focusMode: { ideal: 'continuous' }
+    };
+
+    if (chosenDeviceId) {
+      videoConstraints.deviceId = { exact: chosenDeviceId };
+    } else {
+      videoConstraints.facingMode = { ideal: 'environment' };
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: videoConstraints
+    });
+
+    currentStream = stream;
+    scanVideo.srcObject = stream;
+    await scanVideo.play();
 
     scanning = true;
     camLabel('Matikan kamera');
     setupTorch();
-    runNativeDetector();
 
-  } catch(e) {
-    console.warn('Camera start error:', e);
-    if (deviceId) {
-      localStorage.removeItem('kasirku_cam_id');
-      btnCam.disabled = false;
-      return startCam();
+    // Check engine and launch
+    const hasNative = await checkNativeSupport();
+    if (hasNative) {
+      startNativeEngine();
+    } else {
+      startZXingEngine();
     }
-    if (readerWrap) readerWrap.hidden = true;
-    hero.classList.remove('scanning');
-    camLabel('Scan pakai kamera');
-    scanMsg.innerHTML = 'Kamera tidak dapat diakses atau sedang digunakan aplikasi lain.<br><small style="opacity:0.9">1. Pastikan izin kamera telah diizinkan.<br>2. Coba tombol <b>Ganti Kamera</b> atau <b>Scan dari Foto</b> di atas.<br>3. Anda juga bisa ketik barcode di kolom pencarian.</small>';
+
+  } catch (err) {
+    console.error('Camera access error:', err);
+    handleCameraError(err, deviceId);
+  } finally {
+    btnCam.disabled = false;
   }
-  btnCam.disabled = false;
 }
 
-// Hidden canvas for preprocessing video frames (glare/reflection handling)
-const _preCanvas = document.createElement('canvas');
-const _preCtx = _preCanvas.getContext('2d');
-
-function _captureFrame(video, filter) {
-  const w = video.videoWidth || 640, h = video.videoHeight || 480;
-  _preCanvas.width = w; _preCanvas.height = h;
-  _preCtx.filter = filter;
-  _preCtx.drawImage(video, 0, 0, w, h);
-  _preCtx.filter = 'none';
-  return _preCanvas;
+function handleCameraError(err, deviceId) {
+  if (deviceId) {
+    localStorage.removeItem('kasirku_cam_id');
+    btnCam.disabled = false;
+    return startCam(); // Retry with default camera
+  }
+  stopCam();
+  const name = err.name || '';
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    scanMsg.innerHTML = '<b>Akses kamera ditolak.</b><br><small>Izinkan akses kamera di pengaturan browser agar dapat memindai barcode.</small>';
+  } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    scanMsg.innerHTML = '<b>Kamera tidak ditemukan</b> pada perangkat ini.';
+  } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+    scanMsg.innerHTML = '<b>Kamera sedang digunakan</b> oleh aplikasi lain. Tutup aplikasi lain lalu coba lagi.';
+  } else {
+    scanMsg.innerHTML = 'Gagal mengakses kamera (' + (err.message || name) + '). Anda dapat mengetik barcode manual di kolom pencarian.';
+  }
 }
 
-// Deteksi barcode dengan 2 preset: raw dulu (cepat), kalau gagal baru contrast boost
-// Tidak pakai 5 preset karena terlalu berat per frame
-async function _detectWithPresets(video) {
-  // Preset 1: raw (native, paling cepat)
-  try {
-    const b1 = await nativeDetector.detect(video);
-    if (b1 && b1.length > 0 && b1[0].rawValue) return b1[0].rawValue;
-  } catch(e){}
-  // Preset 2: contrast boost (untuk plastik glossy/silau)
-  try {
-    const src = _captureFrame(video, 'contrast(2) brightness(1.05) saturate(0)');
-    const b2 = await nativeDetector.detect(src);
-    if (b2 && b2.length > 0 && b2[0].rawValue) return b2[0].rawValue;
-  } catch(e){}
-  return null;
-}
+// Launch Native BarcodeDetector Engine
+function startNativeEngine() {
+  currentEngine = 'native';
+  consecutiveErrors = 0;
+  if (engineName) engineName.textContent = '⚡ Native BarcodeDetector';
+  if (!nativeDetector) {
+    try {
+      nativeDetector = new window.BarcodeDetector({ formats: TARGET_FORMATS });
+    } catch (e) {
+      return startZXingEngine();
+    }
+  }
 
-function runNativeDetector(){
-  if (!nativeDetector) return;
-  const video = document.querySelector('#reader video');
-  if (!video) return;
-  let inProgress = false;
-  async function loop(){
-    if (!scanning || video.paused || video.ended) return;
-    if (!inProgress && video.readyState >= 2) {
-      inProgress = true;
+  let lastTick = 0;
+  const MIN_FRAME_INTERVAL = 60; // ms: throttled to ~16 FPS to prevent CPU overheating
+
+  async function loop(timestamp) {
+    if (!scanning || scanVideo.paused || scanVideo.ended) return;
+
+    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2) {
+      lastTick = timestamp;
+      isDecoding = true;
       try {
-        const raw = await _detectWithPresets(video);
-        if (raw) onScan(raw);
-      } catch(err){}
-      inProgress = false;
+        const barcodes = await nativeDetector.detect(scanVideo);
+        consecutiveErrors = 0;
+        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+          onScan(barcodes[0].rawValue);
+        }
+      } catch (err) {
+        consecutiveErrors++;
+        // If native detector fails repeatedly, fallback to ZXing seamlessly
+        if (consecutiveErrors >= 6) {
+          console.warn('Native BarcodeDetector errors, falling back to ZXing');
+          return startZXingEngine();
+        }
+      } finally {
+        isDecoding = false;
+      }
     }
     detectorRaf = requestAnimationFrame(loop);
   }
   detectorRaf = requestAnimationFrame(loop);
 }
 
-async function stopCam(){
+// Launch Fallback Engine: ZXing
+function startZXingEngine() {
   if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
-  if (qr && scanning) { try { await qr.stop(); } catch(e){} }
+  currentEngine = 'zxing';
+  if (engineName) engineName.textContent = '⚙️ ZXing Engine';
+
+  const reader = getZXingReader();
+  if (!reader) {
+    scanMsg.textContent = 'Pustaka pemindai belum siap.';
+    return;
+  }
+
+  try {
+    reader.decodeFromVideoElementContinuously(scanVideo, (result, err) => {
+      if (!scanning) return;
+      if (result) {
+        onScan(result.getText());
+      }
+    });
+  } catch (e) {
+    console.error('ZXing continuous error:', e);
+  }
+}
+
+// Stop scanner stream & decoders
+function stopScannerStreams() {
+  if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
+  if (zxingReader) {
+    try { zxingReader.reset(); } catch (e) {}
+  }
+  if (currentStream) {
+    currentStream.getTracks().forEach(t => t.stop());
+    currentStream = null;
+  }
+  if (scanVideo) {
+    scanVideo.srcObject = null;
+  }
+  isDecoding = false;
+}
+
+async function stopCam() {
+  stopScannerStreams();
   scanning = false;
   torchOn = false;
   if (readerWrap) readerWrap.hidden = true;
@@ -1340,20 +1475,30 @@ async function stopCam(){
   camLabel('Scan pakai kamera');
 }
 
-function setupTorch(){
+// Torch (flashlight) support
+function setupTorch() {
+  btnTorch.hidden = true;
+  if (!currentStream) return;
+  const track = currentStream.getVideoTracks()[0];
+  if (!track || !track.getCapabilities) return;
   try {
-    const t = qr.getRunningTrackCameraCapabilities().torchFeature();
-    if (t.isSupported()) {
+    const caps = track.getCapabilities();
+    if (caps.torch) {
       btnTorch.hidden = false;
       btnTorch.onclick = async () => {
         torchOn = !torchOn;
-        try { await t.apply(torchOn); } catch(e){}
-        btnTorch.setAttribute('aria-pressed', torchOn);
+        try {
+          await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+          btnTorch.setAttribute('aria-pressed', torchOn);
+        } catch (e) {
+          console.warn('Torch constraint error:', e);
+        }
       };
     }
-  } catch(e){}
+  } catch (e) {}
 }
 
+// Switch Camera
 btnCamSwitch.onclick = async () => {
   if (!availableCameras.length) return;
   currentCamIdx = (currentCamIdx + 1) % availableCameras.length;
@@ -1361,47 +1506,43 @@ btnCamSwitch.onclick = async () => {
   localStorage.setItem('kasirku_cam_id', nextCam.id);
   toast('Beralih ke: ' + (nextCam.label || ('Kamera ' + (currentCamIdx + 1))));
   await stopCam();
-  setTimeout(() => startCam(nextCam.id), 250);
+  setTimeout(() => startCam(nextCam.id), 200);
 };
 
-// Tombol 📷 Snap: ambil frame saat ini lalu scan dari foto (lebih akurat dari live stream)
-const btnSnap = $('#btnSnap');
+// Snapshot Button (Captures current frame for instant high-contrast decode)
 if (btnSnap) {
   btnSnap.onclick = async () => {
-    const video = document.querySelector('#reader video');
-    if (!video || !scanning) return;
+    if (!scanVideo || !scanning || scanVideo.readyState < 2) return;
     btnSnap.classList.add('scanning-snap');
     btnSnap.disabled = true;
-    scanMsg.textContent = 'Menganalisa foto…';
+    scanMsg.textContent = 'Menganalisis foto…';
 
     try {
-      const w = video.videoWidth || 640, h = video.videoHeight || 480;
-      // Buat canvas HD dari frame video saat ini
+      const w = scanVideo.videoWidth || 640, h = scanVideo.videoHeight || 480;
       const snapCanvas = document.createElement('canvas');
       snapCanvas.width = w; snapCanvas.height = h;
       const snapCtx = snapCanvas.getContext('2d');
 
-      const snapPresets = [
+      const presets = [
         'none',
         'contrast(2) brightness(1.05) saturate(0)',
         'contrast(3) brightness(0.85) saturate(0)',
         'contrast(1.6) brightness(1.2)',
-        'contrast(2.5) brightness(0.9) saturate(0) invert(1)',
-        'contrast(4) brightness(0.75) saturate(0)',
+        'contrast(2.5) brightness(0.9) saturate(0) invert(1)'
       ];
 
       let found = null;
 
-      // Coba dengan BarcodeDetector native dulu (semua preset)
+      // 1. Try Native BarcodeDetector first
       if (nativeDetector) {
-        for (const filter of snapPresets) {
+        for (const filter of presets) {
           try {
             let src;
             if (filter === 'none') {
-              src = video;
+              src = scanVideo;
             } else {
               snapCtx.filter = filter;
-              snapCtx.drawImage(video, 0, 0, w, h);
+              snapCtx.drawImage(scanVideo, 0, 0, w, h);
               snapCtx.filter = 'none';
               src = snapCanvas;
             }
@@ -1410,127 +1551,151 @@ if (btnSnap) {
               found = res[0].rawValue;
               break;
             }
-          } catch(e){}
+          } catch (e) {}
         }
       }
 
-      // Fallback: Html5Qrcode scanFile (blobkan canvas)
-      if (!found) {
-        try {
-          snapCtx.filter = 'contrast(2) brightness(1.05) saturate(0)';
-          snapCtx.drawImage(video, 0, 0, w, h);
-          snapCtx.filter = 'none';
-          const blob = await new Promise(r => snapCanvas.toBlob(r, 'image/jpeg', 0.95));
-          const file = new File([blob], 'snap.jpg', {type: 'image/jpeg'});
-          if (!qr) {
-            const F = window.Html5QrcodeSupportedFormats;
-            const fmts = F ? [F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.QR_CODE] : undefined;
-            qr = new Html5Qrcode('reader', { formatsToSupport: fmts, verbose: false });
+      // 2. Try ZXing if not found
+      if (!found && typeof window.ZXing !== 'undefined') {
+        const reader = getZXingReader();
+        if (reader) {
+          for (const filter of ['none', 'contrast(2) brightness(1.05) saturate(0)']) {
+            try {
+              snapCtx.filter = filter;
+              snapCtx.drawImage(scanVideo, 0, 0, w, h);
+              snapCtx.filter = 'none';
+              const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.95);
+              const res = await reader.decodeFromImageUrl(dataUrl);
+              if (res && res.getText()) {
+                found = res.getText();
+                break;
+              }
+            } catch (e) {}
           }
-          found = await qr.scanFile(file, true);
-        } catch(e){}
+        }
       }
 
       if (found) {
         scanMsg.textContent = '';
         onScan(found);
       } else {
-        scanMsg.textContent = '⚠ Barcode tidak terbaca. Pastikan barcode masuk ke frame, tidak buram, dan cukup cahaya.';
-        setTimeout(() => { if(scanning) scanMsg.textContent = ''; }, 3000);
+        scanMsg.textContent = '⚠ Barcode tidak terbaca. Pastikan barcode berada di dalam kotak garis merah dan cukup cahaya.';
+        setTimeout(() => { if (scanning) scanMsg.textContent = ''; }, 3000);
       }
-    } catch(err) {
-      scanMsg.textContent = 'Gagal mengambil foto dari kamera.';
+    } catch (err) {
+      scanMsg.textContent = 'Gagal menganalisis foto.';
+    } finally {
+      btnSnap.classList.remove('scanning-snap');
+      btnSnap.disabled = false;
     }
-
-    btnSnap.classList.remove('scanning-snap');
-    btnSnap.disabled = false;
   };
 }
 
+// Scan from File / Gallery
 if (scanFileInp) {
   scanFileInp.onchange = async e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     scanMsg.textContent = 'Menganalisis barcode dari foto…';
+
     try {
-      if (nativeDetector) {
-        const bmp = await createImageBitmap(file);
-        // Try multiple contrast presets for photo scan too
-        const photoPresets = [
-          'none',
-          'contrast(1.8) brightness(1.05)',
-          'contrast(2.5) brightness(0.9) saturate(0)',
-          'contrast(3) brightness(0.8) saturate(0)',
-          'contrast(1.5) brightness(1.2) invert(1)',
-        ];
-        let photoResult = null;
-        for (const filter of photoPresets) {
-          try {
-            let src = bmp;
-            if (filter !== 'none') {
-              const pc = document.createElement('canvas');
-              pc.width = bmp.width; pc.height = bmp.height;
-              const px = pc.getContext('2d');
-              px.filter = filter; px.drawImage(bmp, 0, 0); px.filter = 'none';
-              src = pc;
-            }
-            const res = await nativeDetector.detect(src);
-            if (res && res.length > 0 && res[0].rawValue) { photoResult = res[0].rawValue; break; }
-          } catch(e){}
-        }
-        if (photoResult) {
-          scanMsg.textContent = '';
-          onScan(photoResult);
-          e.target.value = '';
-          return;
-        }
+      let found = null;
+      // 1. Try Native BarcodeDetector
+      if (typeof window.BarcodeDetector !== 'undefined') {
+        try {
+          const detector = nativeDetector || new window.BarcodeDetector({ formats: TARGET_FORMATS });
+          const bmp = await createImageBitmap(file);
+          const res = await detector.detect(bmp);
+          if (res && res.length > 0 && res[0].rawValue) {
+            found = res[0].rawValue;
+          }
+        } catch (e) {}
       }
-      if (!qr) {
-        const F = window.Html5QrcodeSupportedFormats;
-        const formats = F ? [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE] : undefined;
-        qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
+
+      // 2. Try ZXing
+      if (!found && typeof window.ZXing !== 'undefined') {
+        try {
+          const reader = getZXingReader();
+          const url = URL.createObjectURL(file);
+          const res = await reader.decodeFromImageUrl(url);
+          URL.revokeObjectURL(url);
+          if (res && res.getText()) {
+            found = res.getText();
+          }
+        } catch (e) {}
       }
-      const decoded = await qr.scanFile(file, true);
-      scanMsg.textContent = '';
-      onScan(decoded);
-    } catch(err) {
-      scanMsg.textContent = 'Barcode tidak terdeteksi dari foto ini. Pastikan foto jelas, tidak silau, dan seluruh garis barcode terlihat.';
+
+      if (found) {
+        scanMsg.textContent = '';
+        onScan(found);
+      } else {
+        scanMsg.textContent = 'Barcode tidak terdeteksi dari foto ini. Pastikan seluruh garis barcode terlihat jelas dan tidak buram.';
+      }
+    } catch (err) {
+      scanMsg.textContent = 'Gagal memproses file foto.';
+    } finally {
+      e.target.value = '';
     }
-    e.target.value = '';
   };
 }
 
+// Display scan result overlay badge
 let _scanResultTimer = null;
 function showScanResult(code, label, ok) {
-  const el = $('#scanResult'), codeEl = $('#scanResultCode'), lblEl = $('#scanResultLabel');
-  if (!el) return;
-  codeEl.textContent = code;
-  lblEl.textContent = label || '';
-  codeEl.style.color = ok ? '#4eff91' : '#ff6b6b';
-  el.hidden = false;
-  // Reset animasi
-  el.style.animation = 'none';
-  void el.offsetWidth;
-  el.style.animation = '';
+  if (!scanResult) return;
+  scanResultCode.textContent = code;
+  scanResultLabel.textContent = label || '';
+  scanResultCode.style.color = ok ? '#4eff91' : '#ff6b6b';
+  scanResult.hidden = false;
+  scanResult.style.animation = 'none';
+  void scanResult.offsetWidth;
+  scanResult.style.animation = '';
   if (_scanResultTimer) clearTimeout(_scanResultTimer);
-  _scanResultTimer = setTimeout(() => { el.hidden = true; }, 2500);
+  _scanResultTimer = setTimeout(() => { if (scanResult) scanResult.hidden = true; }, 2400);
 }
 
-function onScan(text){
-  if (modalOpen) return;
+// Viewfinder visual feedback animation
+function flashViewfinder(ok) {
+  if (!vfBox) return;
+  vfBox.classList.remove('detected');
+  void vfBox.offsetWidth;
+  if (ok) {
+    vfBox.classList.add('detected');
+    setTimeout(() => { if (vfBox) vfBox.classList.remove('detected'); }, 350);
+  }
+}
+
+// Core scan handler with smart deduplication & cart integration
+function onScan(rawText) {
+  if (modalOpen || isProcessingItem) return;
+
+  const text = String(rawText || '').trim();
+  if (!text) return;
+
   const now = Date.now();
-  if (text === last.c && now - last.t < 1800) return;
-  last = {c:text, t:now};
-  beep(true);
-  const it = findByCode(text);
-  if (it) {
-    addItem(it);
-    showScanResult(text, '✓ ' + it.nama, true);
+  // If SAME barcode, enforce short cooldown to avoid accidental multi-scans in consecutive frames.
+  // If DIFFERENT barcode, cooldown is 0ms (instant switch to next item)!
+  if (text === lastScannedCode && (now - lastScannedTime) < SAME_CODE_COOLDOWN) {
+    return;
+  }
+
+  isProcessingItem = true;
+  lastScannedCode = text;
+  lastScannedTime = now;
+
+  const item = findByCode(text);
+  if (item) {
+    flashViewfinder(true);
+    addItem(item); // Note: addItem already updates cart quantity and plays beep(true)
+    showScanResult(text, '✓ ' + item.nama, true);
   } else {
     beep(false);
-    showScanResult(text, '⚠ Barang tidak ditemukan', false);
+    flashViewfinder(false);
+    showScanResult(text, '⚠ Barang belum terdaftar', false);
     showUnknown(text);
   }
+
+  isProcessingItem = false;
 }
 
 /* Views */
