@@ -1,10 +1,11 @@
-const CACHE_NAME = 'kasirku-cache-v2';
+const CACHE_NAME = 'kasirku-cache-v3';
 const ASSETS = [
   './',
   './index.html',
   './logo.png',
   './manifest.webmanifest',
-  './zxing.min.js'
+  './zxing.min.js',
+  './zbar.min.js'
 ];
 
 self.addEventListener('install', e => {
