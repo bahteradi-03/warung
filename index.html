@@ -1218,8 +1218,9 @@ let availableCameras = [];
 let currentCamIdx = 0;
 
 // Fixed-dimension offscreen canvas: NEVER re-allocated in loop (eliminates GC lag on iPhone 8 Plus)
-const ROI_W = 480;
-const ROI_H = 140;
+// 400×110 = ~43% fewer pixels than 480×140 → faster getImageData + WASM decode on every frame
+const ROI_W = 400;
+const ROI_H = 110;
 const roiCanvas = document.createElement('canvas');
 roiCanvas.width = ROI_W;
 roiCanvas.height = ROI_H;
@@ -1229,7 +1230,7 @@ const roiCtx = roiCanvas.getContext('2d', { willReadFrequently: true });
 let lastScannedCode = '';
 let lastScannedTime = 0;
 let isProcessingItem = false;
-const SAME_CODE_COOLDOWN = 1200; // ms: cooldown only for the exact same barcode
+const SAME_CODE_COOLDOWN = 900; // ms: shorter cooldown — still prevents accidental double-scan
 
 // UI Elements
 const btnCam = $('#btnCam');
@@ -1495,7 +1496,7 @@ function startNativeEngine() {
   }
 
   let lastTick = 0;
-  const MIN_FRAME_INTERVAL = 60; // ms: throttled to ~16 FPS to prevent CPU overheating
+  const MIN_FRAME_INTERVAL = 33; // ms: ~30 FPS — fast enough to detect barcodes quickly
 
   async function loop(timestamp) {
     if (!scanning || scanVideo.paused || scanVideo.ended) return;
@@ -1565,8 +1566,8 @@ function startZBarEngine() {
     }).catch(() => {});
   }
 
-  // Interval: 40ms on Mac M1, 50ms on older iPhones (super fast, ~20-25 FPS)
-  const MIN_FRAME_INTERVAL = isDesktop ? 40 : 50;
+  // Interval: 33ms on Mac M1 (~30fps), 40ms on older iPhones (~25fps) - significantly faster than before
+  const MIN_FRAME_INTERVAL = isDesktop ? 33 : 40;
   let lastTick = 0;
   let frameCount = 0;
 
@@ -1583,18 +1584,18 @@ function startZBarEngine() {
         const vh = scanVideo.videoHeight || 480;
 
         // Dynamic Viewfinder ROI:
-        // Most frames: Center Viewfinder ROI (faster, cuts background clutter)
-        // Every 6th frame: Broader zone
-        const isBroad = (frameCount % 6 === 0);
+        // Most frames: Tight center ROI (faster, cuts background noise)
+        // Every 8th frame: Wider zone for barcodes slightly off-center
+        const isBroad = (frameCount % 8 === 0);
         let cropX, cropY, cropW, cropH;
         if (isBroad) {
-          cropW = Math.round(vw * 0.90);
-          cropH = Math.round(vh * 0.70);
+          cropW = Math.round(vw * 0.85);
+          cropH = Math.round(vh * 0.60);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         } else {
-          cropW = Math.round(vw * 0.76);
-          cropH = Math.round(vh * 0.44);
+          cropW = Math.round(vw * 0.68);
+          cropH = Math.round(vh * 0.36);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         }
@@ -1652,8 +1653,8 @@ function startZXingEngine() {
 
   let lastTick = 0;
   let frameCount = 0;
-  // Interval: 50ms on Mac M1, 65ms on older iPhones (balances responsiveness & battery)
-  const MIN_FRAME_INTERVAL = isDesktop ? 50 : 65;
+  // Faster intervals: 40ms Mac (~25fps), 50ms iPhone (~20fps)
+  const MIN_FRAME_INTERVAL = isDesktop ? 40 : 50;
 
   async function zxingLoop(timestamp) {
     if (!scanning || scanVideo.paused || scanVideo.ended) return;
@@ -1667,20 +1668,19 @@ function startZXingEngine() {
         const vw = scanVideo.videoWidth || 640;
         const vh = scanVideo.videoHeight || 480;
 
-        // Alternate scanning strategies:
-        // Most frames: Center Viewfinder ROI (80% faster, cuts background clutter)
-        // Every 5th frame: Broader zone (in case barcode is held further or slightly off-center)
-        const isBroad = (frameCount % 5 === 0);
+        // Tighter ROI = fewer pixels = faster decode
+        // Every 8th frame: broader zone for slightly off-center barcodes
+        const isBroad = (frameCount % 8 === 0);
 
         let cropX, cropY, cropW, cropH;
         if (isBroad) {
-          cropW = Math.round(vw * 0.90);
-          cropH = Math.round(vh * 0.70);
+          cropW = Math.round(vw * 0.85);
+          cropH = Math.round(vh * 0.60);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         } else {
-          cropW = Math.round(vw * 0.76);
-          cropH = Math.round(vh * 0.44);
+          cropW = Math.round(vw * 0.68);
+          cropH = Math.round(vh * 0.36);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         }
@@ -1705,8 +1705,8 @@ function startZXingEngine() {
             decodedText = res.getText();
           }
         } catch (e1) {
-          // If primary failed and every 6th frame, try the secondary binarizer as backup
-          if (frameCount % 6 === 0) {
+          // If primary failed and every 8th frame, try the secondary binarizer as backup
+          if (frameCount % 8 === 0) {
             try {
               const secondaryBinarizer = useGlobal
                 ? new window.ZXing.HybridBinarizer(lumSource)
