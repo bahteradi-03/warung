@@ -1199,7 +1199,7 @@ $('#btnReset').onclick = () => { if (confirm('Hapus semua transaksi dan perubaha
 document.addEventListener('click', e => { const g = e.target.closest('[data-goto]'); if (g) switchView(g.dataset.goto); });
 
 /* ==========================================================================
-   HYBRID BARCODE SCANNER ENGINE (Native BarcodeDetector + ZXing Fallback)
+   HYBRID BARCODE SCANNER ENGINE (Native BarcodeDetector + ZXing Turbo iOS)
    ========================================================================== */
 
 let scanning = false;
@@ -1207,13 +1207,17 @@ let currentStream = null;
 let currentDeviceId = null;
 let currentEngine = null; // 'native' | 'zxing'
 let nativeDetector = null;
-let zxingReader = null;
+let zxingMultiReader = null;
 let detectorRaf = null;
 let isDecoding = false;
 let consecutiveErrors = 0;
 let torchOn = false;
 let availableCameras = [];
 let currentCamIdx = 0;
+
+// Reusable offscreen canvas for ROI cropping with willReadFrequently (critical for iOS Safari)
+const roiCanvas = document.createElement('canvas');
+const roiCtx = roiCanvas.getContext('2d', { willReadFrequently: true });
 
 // Deduplication state machine
 let lastScannedCode = '';
@@ -1241,7 +1245,7 @@ const scanResultLabel = $('#scanResultLabel');
 
 const TARGET_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
 
-// Check if Native BarcodeDetector is fully supported and supports EAN-13
+// Check if Native BarcodeDetector is fully supported and supports EAN-13 (Android Chrome, Edge, etc.)
 async function checkNativeSupport() {
   if (typeof window.BarcodeDetector !== 'function') return false;
   try {
@@ -1252,9 +1256,41 @@ async function checkNativeSupport() {
   }
 }
 
-// Initialize ZXing reader instance with optimized hints
-function getZXingReader() {
-  if (zxingReader) return zxingReader;
+// Smart camera selector for iPhone and multi-camera smartphones:
+// Picks the primary 1x back camera and explicitly avoids the 0.5x Ultra-Wide lens
+function findBestBackCamera(devices) {
+  const videoDevices = devices.filter(d => d.kind === 'videoinput');
+  if (!videoDevices.length) return null;
+
+  // Filter out front, ultra-wide, telephoto, and truedepth cameras
+  const nonUltra = videoDevices.filter(d => {
+    const lbl = (d.label || '').toLowerCase();
+    return !lbl.includes('front') && 
+           !lbl.includes('depan') &&
+           !lbl.includes('ultra') && 
+           !lbl.includes('tele') && 
+           !lbl.includes('truedepth') &&
+           !lbl.includes('depth');
+  });
+
+  // 1. Look for explicit "Back Camera" or "Kamera Belakang" (1x primary lens)
+  const exactBack = nonUltra.find(d => {
+    const lbl = (d.label || '').toLowerCase();
+    return lbl === 'back camera' || lbl === 'kamera belakang';
+  });
+  if (exactBack) return exactBack;
+
+  // 2. Look for any camera containing "back"
+  const anyBack = nonUltra.find(d => (d.label || '').toLowerCase().includes('back'));
+  if (anyBack) return anyBack;
+
+  if (nonUltra.length > 0) return nonUltra[0];
+  return videoDevices[0];
+}
+
+// Initialize ZXing MultiFormatReader with TRY_HARDER for iOS Turbo Engine
+function getZXingMultiReader() {
+  if (zxingMultiReader) return zxingMultiReader;
   if (typeof window.ZXing === 'undefined') return null;
   const hints = new Map();
   hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
@@ -1263,12 +1299,12 @@ function getZXingReader() {
     window.ZXing.BarcodeFormat.UPC_A,
     window.ZXing.BarcodeFormat.UPC_E,
     window.ZXing.BarcodeFormat.CODE_128,
-    window.ZXing.BarcodeFormat.CODE_39,
-    window.ZXing.BarcodeFormat.QR_CODE
+    window.ZXing.BarcodeFormat.CODE_39
   ]);
-  // 80ms interval keeps CPU low while feeling instantaneous
-  zxingReader = new window.ZXing.BrowserMultiFormatReader(hints, 80);
-  return zxingReader;
+  hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+  zxingMultiReader = new window.ZXing.MultiFormatReader();
+  zxingMultiReader.setHints(hints);
+  return zxingMultiReader;
 }
 
 const camLabel = t => { btnCam.querySelector('span').textContent = t; };
@@ -1303,13 +1339,15 @@ async function startCam(deviceId) {
     // Stop any existing stream cleanly before opening new one
     stopScannerStreams();
 
-    // Enumerate available cameras
+    // Enumerate available cameras and identify primary 1x back camera
+    let bestBackCam = null;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       availableCameras = devices.filter(d => d.kind === 'videoinput');
       if (availableCameras.length > 1) {
         btnCamSwitch.hidden = false;
       }
+      bestBackCam = findBestBackCamera(availableCameras);
     } catch (e) {}
 
     let chosenDeviceId = deviceId;
@@ -1317,13 +1355,14 @@ async function startCam(deviceId) {
       const savedCam = localStorage.getItem('kasirku_cam_id');
       if (savedCam && availableCameras.some(c => c.id === savedCam)) {
         chosenDeviceId = savedCam;
+      } else if (bestBackCam && bestBackCam.deviceId) {
+        chosenDeviceId = bestBackCam.deviceId;
       }
     }
 
     const videoConstraints = {
       width: { ideal: 1280, min: 640 },
-      height: { ideal: 720, min: 480 },
-      focusMode: { ideal: 'continuous' }
+      height: { ideal: 720, min: 480 }
     };
 
     if (chosenDeviceId) {
@@ -1344,6 +1383,40 @@ async function startCam(deviceId) {
     scanning = true;
     camLabel('Matikan kamera');
     setupTorch();
+
+    // Apply continuous focus on iOS / Android if supported by hardware
+    const track = stream.getVideoTracks()[0];
+    if (track && track.applyConstraints) {
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        const adv = [];
+        if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+          adv.push({ focusMode: 'continuous' });
+        }
+        if (adv.length > 0) {
+          await track.applyConstraints({ advanced: adv });
+        }
+      } catch (e) {}
+    }
+
+    // After permission is first granted, if device labels were initially empty, re-check camera
+    if (!deviceId && (!chosenDeviceId || !availableCameras.some(c => c.label))) {
+      try {
+        const freshDevices = await navigator.mediaDevices.enumerateDevices();
+        availableCameras = freshDevices.filter(d => d.kind === 'videoinput');
+        if (availableCameras.length > 1) {
+          btnCamSwitch.hidden = false;
+          const detectedBest = findBestBackCamera(availableCameras);
+          const currentSettings = track.getSettings ? track.getSettings() : {};
+          // If iOS defaulted to an ultra-wide lens, switch seamlessly to the 1x back camera
+          if (detectedBest && detectedBest.deviceId && currentSettings.deviceId !== detectedBest.deviceId) {
+            localStorage.setItem('kasirku_cam_id', detectedBest.deviceId);
+            stopScannerStreams();
+            return startCam(detectedBest.deviceId);
+          }
+        }
+      } catch (e) {}
+    }
 
     // Check engine and launch
     const hasNative = await checkNativeSupport();
@@ -1380,7 +1453,7 @@ function handleCameraError(err, deviceId) {
   }
 }
 
-// Launch Native BarcodeDetector Engine
+// Launch Native BarcodeDetector Engine (Android Chrome, Edge, etc.)
 function startNativeEngine() {
   currentEngine = 'native';
   consecutiveErrors = 0;
@@ -1410,9 +1483,9 @@ function startNativeEngine() {
         }
       } catch (err) {
         consecutiveErrors++;
-        // If native detector fails repeatedly, fallback to ZXing seamlessly
+        // If native detector fails repeatedly, fallback to ZXing Turbo seamlessly
         if (consecutiveErrors >= 6) {
-          console.warn('Native BarcodeDetector errors, falling back to ZXing');
+          console.warn('Native BarcodeDetector errors, falling back to ZXing Turbo');
           return startZXingEngine();
         }
       } finally {
@@ -1424,36 +1497,102 @@ function startNativeEngine() {
   detectorRaf = requestAnimationFrame(loop);
 }
 
-// Launch Fallback Engine: ZXing
+// Launch Turbo ROI Fallback Engine: ZXing (iOS Safari & non-BarcodeDetector devices)
 function startZXingEngine() {
   if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
   currentEngine = 'zxing';
-  if (engineName) engineName.textContent = '⚙️ ZXing Engine';
+  if (engineName) engineName.textContent = '⚙️ ZXing Turbo (iOS)';
 
-  const reader = getZXingReader();
+  const reader = getZXingMultiReader();
   if (!reader) {
     scanMsg.textContent = 'Pustaka pemindai belum siap.';
     return;
   }
 
-  try {
-    reader.decodeFromVideoElementContinuously(scanVideo, (result, err) => {
-      if (!scanning) return;
-      if (result) {
-        onScan(result.getText());
+  let lastTick = 0;
+  let frameCount = 0;
+  const MIN_FRAME_INTERVAL = 60; // ms: ~16 FPS, snappy without dropping frames
+
+  async function zxingLoop(timestamp) {
+    if (!scanning || scanVideo.paused || scanVideo.ended) return;
+
+    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2) {
+      lastTick = timestamp;
+      isDecoding = true;
+      frameCount++;
+
+      try {
+        const vw = scanVideo.videoWidth || 640;
+        const vh = scanVideo.videoHeight || 480;
+
+        // 75% of frames: scan the focused center Viewfinder ROI (80% faster!)
+        // 25% of frames (every 4th tick): scan the full frame in case barcode is slightly off-center
+        const scanFull = (frameCount % 4 === 0);
+
+        let cropX, cropY, cropW, cropH, targetW, targetH;
+
+        if (scanFull) {
+          cropX = 0;
+          cropY = 0;
+          cropW = vw;
+          cropH = vh;
+          targetW = Math.min(vw, 800);
+          targetH = Math.round(targetW * (vh / vw));
+        } else {
+          cropW = Math.round(vw * 0.78);
+          cropH = Math.round(vh * 0.46);
+          cropX = Math.round((vw - cropW) / 2);
+          cropY = Math.round((vh - cropH) / 2);
+          targetW = Math.min(cropW, 640);
+          targetH = Math.round(targetW * (cropH / cropW));
+        }
+
+        roiCanvas.width = targetW;
+        roiCanvas.height = targetH;
+        roiCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+        const lumSource = new window.ZXing.HTMLCanvasElementLuminanceSource(roiCanvas);
+        let decodedText = null;
+
+        // Pass 1: HybridBinarizer (standard high-contrast bars)
+        try {
+          const hybrid = new window.ZXing.HybridBinarizer(lumSource);
+          const bitmap = new window.ZXing.BinaryBitmap(hybrid);
+          const res = reader.decode(bitmap);
+          if (res && res.getText()) {
+            decodedText = res.getText();
+          }
+        } catch (e1) {
+          // Pass 2: GlobalHistogramBinarizer (glare/reflective curved plastic bottle)
+          try {
+            const globalBin = new window.ZXing.GlobalHistogramBinarizer(lumSource);
+            const bitmap2 = new window.ZXing.BinaryBitmap(globalBin);
+            const res2 = reader.decode(bitmap2);
+            if (res2 && res2.getText()) {
+              decodedText = res2.getText();
+            }
+          } catch (e2) {}
+        }
+
+        if (decodedText) {
+          onScan(decodedText);
+        }
+      } catch (err) {
+        // Ignored frame decode error
+      } finally {
+        isDecoding = false;
       }
-    });
-  } catch (e) {
-    console.error('ZXing continuous error:', e);
+    }
+
+    detectorRaf = requestAnimationFrame(zxingLoop);
   }
+
+  detectorRaf = requestAnimationFrame(zxingLoop);
 }
 
 // Stop scanner stream & decoders
 function stopScannerStreams() {
   if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
-  if (zxingReader) {
-    try { zxingReader.reset(); } catch (e) {}
-  }
   if (currentStream) {
     currentStream.getTracks().forEach(t => t.stop());
     currentStream = null;
@@ -1509,7 +1648,7 @@ btnCamSwitch.onclick = async () => {
   setTimeout(() => startCam(nextCam.id), 200);
 };
 
-// Snapshot Button (Captures current frame for instant high-contrast decode)
+// Snapshot Button (Captures current frame with high-contrast decode)
 if (btnSnap) {
   btnSnap.onclick = async () => {
     if (!scanVideo || !scanning || scanVideo.readyState < 2) return;
@@ -1518,23 +1657,22 @@ if (btnSnap) {
     scanMsg.textContent = 'Menganalisis foto…';
 
     try {
-      const w = scanVideo.videoWidth || 640, h = scanVideo.videoHeight || 480;
+      const vw = scanVideo.videoWidth || 640, vh = scanVideo.videoHeight || 480;
       const snapCanvas = document.createElement('canvas');
-      snapCanvas.width = w; snapCanvas.height = h;
-      const snapCtx = snapCanvas.getContext('2d');
-
-      const presets = [
-        'none',
-        'contrast(2) brightness(1.05) saturate(0)',
-        'contrast(3) brightness(0.85) saturate(0)',
-        'contrast(1.6) brightness(1.2)',
-        'contrast(2.5) brightness(0.9) saturate(0) invert(1)'
-      ];
+      const snapCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
 
       let found = null;
 
-      // 1. Try Native BarcodeDetector first
+      // 1. Try Native BarcodeDetector first (if active)
       if (nativeDetector) {
+        const presets = [
+          'none',
+          'contrast(2) brightness(1.05) saturate(0)',
+          'contrast(3) brightness(0.85) saturate(0)',
+          'contrast(1.6) brightness(1.2)',
+          'contrast(2.5) brightness(0.9) saturate(0) invert(1)'
+        ];
+        snapCanvas.width = vw; snapCanvas.height = vh;
         for (const filter of presets) {
           try {
             let src;
@@ -1542,7 +1680,7 @@ if (btnSnap) {
               src = scanVideo;
             } else {
               snapCtx.filter = filter;
-              snapCtx.drawImage(scanVideo, 0, 0, w, h);
+              snapCtx.drawImage(scanVideo, 0, 0, vw, vh);
               snapCtx.filter = 'none';
               src = snapCanvas;
             }
@@ -1555,20 +1693,38 @@ if (btnSnap) {
         }
       }
 
-      // 2. Try ZXing if not found
+      // 2. Try ZXing with ROI + Dual Binarizers + contrast presets (for iOS)
       if (!found && typeof window.ZXing !== 'undefined') {
-        const reader = getZXingReader();
+        const reader = getZXingMultiReader();
         if (reader) {
-          for (const filter of ['none', 'contrast(2) brightness(1.05) saturate(0)']) {
+          // Crop center ROI for snapshot
+          const cropW = Math.round(vw * 0.85);
+          const cropH = Math.round(vh * 0.55);
+          const cropX = Math.round((vw - cropW) / 2);
+          const cropY = Math.round((vh - cropH) / 2);
+          const targetW = Math.min(cropW, 800);
+          const targetH = Math.round(targetW * (cropH / cropW));
+          snapCanvas.width = targetW;
+          snapCanvas.height = targetH;
+
+          const filters = ['none', 'contrast(1.8) brightness(1.1) saturate(0)', 'contrast(2.5) brightness(0.9) saturate(0)'];
+          for (const f of filters) {
             try {
-              snapCtx.filter = filter;
-              snapCtx.drawImage(scanVideo, 0, 0, w, h);
+              snapCtx.filter = f;
+              snapCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
               snapCtx.filter = 'none';
-              const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.95);
-              const res = await reader.decodeFromImageUrl(dataUrl);
-              if (res && res.getText()) {
-                found = res.getText();
-                break;
+
+              const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(snapCanvas);
+              try {
+                const b1 = new window.ZXing.HybridBinarizer(lum);
+                const r1 = reader.decode(new window.ZXing.BinaryBitmap(b1));
+                if (r1 && r1.getText()) { found = r1.getText(); break; }
+              } catch (e1) {
+                try {
+                  const b2 = new window.ZXing.GlobalHistogramBinarizer(lum);
+                  const r2 = reader.decode(new window.ZXing.BinaryBitmap(b2));
+                  if (r2 && r2.getText()) { found = r2.getText(); break; }
+                } catch (e2) {}
               }
             } catch (e) {}
           }
@@ -1612,15 +1768,33 @@ if (scanFileInp) {
         } catch (e) {}
       }
 
-      // 2. Try ZXing
+      // 2. Try ZXing with Dual Binarizers
       if (!found && typeof window.ZXing !== 'undefined') {
         try {
-          const reader = getZXingReader();
+          const reader = getZXingMultiReader();
+          const img = new Image();
           const url = URL.createObjectURL(file);
-          const res = await reader.decodeFromImageUrl(url);
+          img.src = url;
+          await img.decode();
           URL.revokeObjectURL(url);
-          if (res && res.getText()) {
-            found = res.getText();
+
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth || img.width;
+          c.height = img.naturalHeight || img.height;
+          const cx = c.getContext('2d', { willReadFrequently: true });
+          cx.drawImage(img, 0, 0);
+
+          const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(c);
+          try {
+            const b1 = new window.ZXing.HybridBinarizer(lum);
+            const r1 = reader.decode(new window.ZXing.BinaryBitmap(b1));
+            if (r1 && r1.getText()) found = r1.getText();
+          } catch (e1) {
+            try {
+              const b2 = new window.ZXing.GlobalHistogramBinarizer(lum);
+              const r2 = reader.decode(new window.ZXing.BinaryBitmap(b2));
+              if (r2 && r2.getText()) found = r2.getText();
+            } catch (e2) {}
           }
         } catch (e) {}
       }
