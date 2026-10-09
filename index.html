@@ -159,7 +159,11 @@ button{cursor:pointer}
 @keyframes beam{0%,100%{top:18px}50%{top:calc(100% - 21px)}}
 .hero.scanning{display:block}
 .hero.scanning .hero-text p,.hero.scanning .scanner-art{display:none}
-.reader-wrap{position:relative;margin-top:14px;border-radius:20px;overflow:hidden;background:#050505;box-shadow:0 10px 32px rgba(0,0,0,0.3);width:100%;height:320px;max-height:60vh}
+.reader-wrap{position:relative;margin-top:14px;border-radius:20px;overflow:hidden;background:#000;box-shadow:0 10px 32px rgba(0,0,0,0.3);width:100%;height:330px;max-height:55vh}
+.reader-wrap video,#scanVideo{width:100%;height:100%;display:block;object-fit:cover;object-position:center;background:#000}
+@media (min-width:768px){
+  .reader-wrap{max-width:560px;height:350px;margin-left:auto;margin-right:auto}
+}
 .engine-badge{position:absolute;top:10px;left:12px;background:rgba(15,23,42,0.8);backdrop-filter:blur(6px);color:#e2e8f0;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:6px;z-index:15;pointer-events:none;border:1px solid rgba(255,255,255,0.12)}
 .engine-badge .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:pdot 1.4s infinite}
 @keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
@@ -1217,20 +1221,18 @@ let torchOn = false;
 let availableCameras = [];
 let currentCamIdx = 0;
 
-// Fixed-dimension offscreen canvas: NEVER re-allocated in loop (eliminates GC lag on iPhone 8 Plus)
-// 400×110 = ~43% fewer pixels than 480×140 → faster getImageData + WASM decode on every frame
-const ROI_W = 400;
-const ROI_H = 110;
+// Dynamic offscreen canvas preserving true aspect ratio (avoids stretching & blurring barcodes)
+const ROI_MAX_W = 640;
 const roiCanvas = document.createElement('canvas');
-roiCanvas.width = ROI_W;
-roiCanvas.height = ROI_H;
+roiCanvas.width = 480;
+roiCanvas.height = 200;
 const roiCtx = roiCanvas.getContext('2d', { willReadFrequently: true });
 
 // Deduplication state machine
 let lastScannedCode = '';
 let lastScannedTime = 0;
 let isProcessingItem = false;
-const SAME_CODE_COOLDOWN = 900; // ms: shorter cooldown — still prevents accidental double-scan
+const SAME_CODE_COOLDOWN = 900; // ms: cooldown only for the exact same barcode
 
 // UI Elements
 const btnCam = $('#btnCam');
@@ -1250,7 +1252,8 @@ const scanResult = $('#scanResult');
 const scanResultCode = $('#scanResultCode');
 const scanResultLabel = $('#scanResultLabel');
 
-const TARGET_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
+// Prioritize standard retail 1D product barcode formats
+const TARGET_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'];
 
 // Check if Native BarcodeDetector is fully supported and supports EAN-13 (Android Chrome, Edge, etc.)
 async function checkNativeSupport() {
@@ -1264,36 +1267,112 @@ async function checkNativeSupport() {
 }
 
 // Smart camera selector for iPhone and multi-camera smartphones:
-// Picks the primary 1x back camera and explicitly avoids 0.5x Ultra-Wide and 2x Telephoto lenses
+// Picks the primary 1x back camera and explicitly avoids 0.5x Ultra-Wide and 2x/3x Telephoto lenses
 function findBestBackCamera(devices) {
   const videoDevices = devices.filter(d => d.kind === 'videoinput');
   if (!videoDevices.length) return null;
 
-  // Filter out front, ultra-wide, telephoto, 2x, and truedepth cameras
-  const nonUltra = videoDevices.filter(d => {
+  // Filter out front / selfie / virtual depth cameras
+  const backCandidates = videoDevices.filter(d => {
     const lbl = (d.label || '').toLowerCase();
     return !lbl.includes('front') && 
            !lbl.includes('depan') &&
-           !lbl.includes('ultra') && 
-           !lbl.includes('tele') && 
-           !lbl.includes('2x') &&
+           !lbl.includes('selfie') && 
+           !lbl.includes('user') && 
            !lbl.includes('truedepth') &&
            !lbl.includes('depth');
   });
 
-  // 1. Look for explicit 1x primary back camera
-  const exactBack = nonUltra.find(d => {
+  const pool = backCandidates.length > 0 ? backCandidates : videoDevices;
+
+  // Exclude ultra-wide (0.5x) and telephoto (2x/3x) to keep the standard 1x main camera
+  const mainLenses = pool.filter(d => {
     const lbl = (d.label || '').toLowerCase();
-    return lbl === 'back camera' || lbl === 'kamera belakang' || lbl.includes('wide camera') || lbl === 'camera 0';
+    return !lbl.includes('ultra') && 
+           !lbl.includes('tele') && 
+           !lbl.includes('0.5') &&
+           !lbl.includes('2x') &&
+           !lbl.includes('3x') &&
+           !lbl.includes('5x');
+  });
+
+  const searchPool = mainLenses.length > 0 ? mainLenses : pool;
+
+  // 1. Look for explicit 1x primary back camera keywords
+  const exactBack = searchPool.find(d => {
+    const lbl = (d.label || '').toLowerCase();
+    return lbl === 'back camera' || 
+           lbl === 'kamera belakang' || 
+           lbl.includes('wide camera') || // iPhone 1x is "Back Wide Camera"
+           lbl.includes('main') ||
+           lbl.includes('primary') ||
+           lbl === 'camera 0';
   });
   if (exactBack) return exactBack;
 
-  // 2. Look for any camera containing "back"
-  const anyBack = nonUltra.find(d => (d.label || '').toLowerCase().includes('back'));
+  // 2. Look for any camera containing "back" or "belakang"
+  const anyBack = searchPool.find(d => {
+    const lbl = (d.label || '').toLowerCase();
+    return lbl.includes('back') || lbl.includes('belakang');
+  });
   if (anyBack) return anyBack;
 
-  if (nonUltra.length > 0) return nonUltra[0];
-  return videoDevices[0];
+  return searchPool[0];
+}
+
+// Calculates the exact video sensor coordinates corresponding to the on-screen viewfinder box (#vfBox)
+// Takes into account CSS object-fit: cover scaling and center alignment
+function getScanCropRegion(video, box) {
+  const vw = video.videoWidth || 640;
+  const vh = video.videoHeight || 480;
+
+  if (!box) {
+    return {
+      cropX: Math.round(vw * 0.1),
+      cropY: Math.round(vh * 0.25),
+      cropW: Math.round(vw * 0.8),
+      cropH: Math.round(vh * 0.5)
+    };
+  }
+
+  const vRect = video.getBoundingClientRect();
+  const bRect = box.getBoundingClientRect();
+
+  if (!vRect.width || !vRect.height) {
+    return {
+      cropX: Math.round(vw * 0.1),
+      cropY: Math.round(vh * 0.25),
+      cropW: Math.round(vw * 0.8),
+      cropH: Math.round(vh * 0.5)
+    };
+  }
+
+  // Object-fit: cover scaling and centering offset
+  const scale = Math.max(vRect.width / vw, vRect.height / vh);
+  const renderedW = vw * scale;
+  const renderedH = vh * scale;
+  const offsetX = (renderedW - vRect.width) / 2;
+  const offsetY = (renderedH - vRect.height) / 2;
+
+  // Position of viewfinder in rendered video coordinates
+  const boxX = (bRect.left - vRect.left) + offsetX;
+  const boxY = (bRect.top - vRect.top) + offsetY;
+
+  // Add 15% horizontal and 25% vertical safety padding
+  const padW = bRect.width * 0.15;
+  const padH = bRect.height * 0.25;
+
+  let cropX = Math.round((boxX - padW) / scale);
+  let cropY = Math.round((boxY - padH) / scale);
+  let cropW = Math.round((bRect.width + padW * 2) / scale);
+  let cropH = Math.round((bRect.height + padH * 2) / scale);
+
+  cropX = Math.max(0, Math.min(vw - 20, cropX));
+  cropY = Math.max(0, Math.min(vh - 20, cropY));
+  cropW = Math.max(20, Math.min(vw - cropX, cropW));
+  cropH = Math.max(20, Math.min(vh - cropY, cropH));
+
+  return { cropX, cropY, cropW, cropH };
 }
 
 // Initialize ZXing MultiFormatReader with TRY_HARDER
@@ -1345,9 +1424,6 @@ async function startCam(deviceId) {
   camLabel('Menyalakan kamera…');
   btnCam.disabled = true;
 
-  // Dynamic hint for focal distance:
-  // On Mac/Laptops, webcams have FIXED focus at arm's length (~40cm).
-  // On phones, macro cameras focus close up (~15cm).
   const hintSpan = $('#camHint span');
   if (hintSpan) {
     hintSpan.textContent = isDesktop
@@ -1359,7 +1435,7 @@ async function startCam(deviceId) {
     // Stop any existing stream cleanly before opening new one
     stopScannerStreams();
 
-    // Enumerate available cameras and identify primary 1x back camera
+    // Enumerate available cameras
     let bestBackCam = null;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -1373,21 +1449,32 @@ async function startCam(deviceId) {
     let chosenDeviceId = deviceId;
     if (!chosenDeviceId) {
       const savedCam = localStorage.getItem('kasirku_cam_id');
-      if (savedCam && availableCameras.some(c => c.id === savedCam)) {
-        chosenDeviceId = savedCam;
-      } else if (bestBackCam && bestBackCam.deviceId) {
+      if (savedCam && availableCameras.some(c => c.deviceId === savedCam)) {
+        // Validate that saved camera is not an unwanted ultra-wide or telephoto lens
+        const savedDev = availableCameras.find(c => c.deviceId === savedCam);
+        const lbl = (savedDev?.label || '').toLowerCase();
+        const isBad = lbl.includes('front') || lbl.includes('ultra') || lbl.includes('tele');
+        if (!isBad) {
+          chosenDeviceId = savedCam;
+        } else {
+          localStorage.removeItem('kasirku_cam_id');
+        }
+      }
+      if (!chosenDeviceId && bestBackCam && bestBackCam.deviceId) {
         chosenDeviceId = bestBackCam.deviceId;
       }
     }
 
     const videoConstraints = {
       width: { ideal: 1280, min: 640 },
-      height: { ideal: 720, min: 480 }
+      height: { ideal: 720, min: 480 },
+      frameRate: { ideal: 30, max: 30 }
     };
 
     if (chosenDeviceId) {
       videoConstraints.deviceId = { exact: chosenDeviceId };
-    } else {
+    } else if (!isDesktop) {
+      // On mobile devices, request back camera by default
       videoConstraints.facingMode = { ideal: 'environment' };
     }
 
@@ -1404,39 +1491,42 @@ async function startCam(deviceId) {
     camLabel('Matikan kamera');
     setupTorch();
 
-    // Apply continuous focus on iOS / Android if supported by hardware
+    // Apply continuous focus and ensure natural 1x zoom (never auto-zoom)
     const track = stream.getVideoTracks()[0];
     if (track && track.applyConstraints) {
       try {
         const caps = track.getCapabilities ? track.getCapabilities() : {};
         const adv = [];
+
+        // Continuous autofocus if supported
         if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
           adv.push({ focusMode: 'continuous' });
         }
+
+        // Reset zoom to 1.0 (natural 1x) or minimum supported zoom to prevent unwanted auto-magnification
+        if (caps.zoom && typeof caps.zoom.min === 'number') {
+          const minZ = caps.zoom.min;
+          const maxZ = caps.zoom.max;
+          const normalZoom = (minZ <= 1.0 && 1.0 <= maxZ) ? 1.0 : minZ;
+          adv.push({ zoom: normalZoom });
+        }
+
         if (adv.length > 0) {
           await track.applyConstraints({ advanced: adv });
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Advanced camera constraints not applied:', e);
+      }
     }
 
-    // After permission is first granted, if device labels were initially empty, re-check camera
-    if (!deviceId && (!chosenDeviceId || !availableCameras.some(c => c.label))) {
-      try {
-        const freshDevices = await navigator.mediaDevices.enumerateDevices();
-        availableCameras = freshDevices.filter(d => d.kind === 'videoinput');
-        if (availableCameras.length > 1) {
-          btnCamSwitch.hidden = false;
-          const detectedBest = findBestBackCamera(availableCameras);
-          const currentSettings = track.getSettings ? track.getSettings() : {};
-          // If iOS defaulted to an ultra-wide or telephoto lens, switch to primary 1x back camera
-          if (detectedBest && detectedBest.deviceId && currentSettings.deviceId !== detectedBest.deviceId) {
-            localStorage.setItem('kasirku_cam_id', detectedBest.deviceId);
-            stopScannerStreams();
-            return startCam(detectedBest.deviceId);
-          }
-        }
-      } catch (e) {}
-    }
+    // Refresh device list with labels after permission granted
+    try {
+      const freshDevices = await navigator.mediaDevices.enumerateDevices();
+      availableCameras = freshDevices.filter(d => d.kind === 'videoinput');
+      if (availableCameras.length > 1) {
+        btnCamSwitch.hidden = false;
+      }
+    } catch (e) {}
 
     // Check engine and launch
     const hasNative = await checkNativeSupport();
@@ -1496,7 +1586,7 @@ function startNativeEngine() {
   }
 
   let lastTick = 0;
-  const MIN_FRAME_INTERVAL = 33; // ms: ~30 FPS — fast enough to detect barcodes quickly
+  const MIN_FRAME_INTERVAL = 33; // ~30 FPS
 
   async function loop(timestamp) {
     if (!scanning || scanVideo.paused || scanVideo.ended) return;
@@ -1512,7 +1602,6 @@ function startNativeEngine() {
         }
       } catch (err) {
         consecutiveErrors++;
-        // If native detector fails repeatedly, fallback to ZBar WASM or ZXing Turbo seamlessly
         if (consecutiveErrors >= 6) {
           console.warn('Native BarcodeDetector errors, falling back');
           const preferred = localStorage.getItem('kasirku_ios_engine') || 'zbar';
@@ -1531,23 +1620,25 @@ function startNativeEngine() {
 }
 
 // Launch ZBar WebAssembly (WASM Turbo) Engine (iOS Safari & Mac Air / non-BarcodeDetector devices)
-function startZBarEngine() {
+async function startZBarEngine() {
   if (detectorRaf) { cancelAnimationFrame(detectorRaf); detectorRaf = null; }
   currentEngine = 'zbar';
   consecutiveErrors = 0;
-  const isDesktop = !(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isDesktop = !isIOS && !/Android/i.test(navigator.userAgent);
   if (engineName) {
     engineName.textContent = isDesktop ? '🚀 ZBar WASM (Mac/PC)' : '🚀 ZBar WASM Turbo (iOS)';
   }
 
   if (typeof window.zbarWasm === 'undefined') {
-    console.warn('zbarWasm not available, fallback to ZXing Turbo');
+    console.warn('zbarWasm not available, fallback to ZXing');
     return startZXingEngine();
   }
 
-  // Pre-configure scanner once to focus on retail barcodes
+  // Pre-configure scanner for retail barcodes before scan loop starts
   if (!zbarConfigured && window.zbarWasm.getDefaultScanner) {
-    window.zbarWasm.getDefaultScanner().then(scanner => {
+    try {
+      const scanner = await window.zbarWasm.getDefaultScanner();
       const z = window.zbarWasm;
       if (scanner && z.ZBarConfigType && z.ZBarSymbolType) {
         scanner.setConfig(0, z.ZBarConfigType.ZBAR_CFG_ENABLE, 0);
@@ -1557,51 +1648,68 @@ function startZBarEngine() {
           z.ZBarSymbolType.ZBAR_UPCA,
           z.ZBarSymbolType.ZBAR_UPCE,
           z.ZBarSymbolType.ZBAR_CODE128,
-          z.ZBarSymbolType.ZBAR_CODE39,
-          z.ZBarSymbolType.ZBAR_QRCODE
+          z.ZBarSymbolType.ZBAR_CODE39
         ];
         retailFormats.forEach(f => scanner.setConfig(f, z.ZBarConfigType.ZBAR_CFG_ENABLE, 1));
         zbarConfigured = true;
       }
-    }).catch(() => {});
+    } catch (e) {}
   }
 
-  // Interval: 33ms on Mac M1 (~30fps), 40ms on older iPhones (~25fps) - significantly faster than before
-  const MIN_FRAME_INTERVAL = isDesktop ? 33 : 40;
+  // WASM warm-up: run one tiny decode to ensure WASM engine JIT is hot
+  try {
+    const warmupData = new ImageData(1, 1);
+    await window.zbarWasm.scanImageData(warmupData);
+  } catch (e) {}
+
+  const MIN_FRAME_INTERVAL = isDesktop ? 33 : (isIOS ? 40 : 35);
   let lastTick = 0;
   let frameCount = 0;
 
   async function zbarLoop(timestamp) {
     if (!scanning || scanVideo.paused || scanVideo.ended) return;
 
-    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2) {
+    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2 && scanVideo.videoWidth > 0) {
       lastTick = timestamp;
       isDecoding = true;
       frameCount++;
 
       try {
-        const vw = scanVideo.videoWidth || 640;
-        const vh = scanVideo.videoHeight || 480;
+        const vw = scanVideo.videoWidth;
+        const vh = scanVideo.videoHeight;
 
-        // Dynamic Viewfinder ROI:
-        // Most frames: Tight center ROI (faster, cuts background noise)
-        // Every 8th frame: Wider zone for barcodes slightly off-center
-        const isBroad = (frameCount % 8 === 0);
+        // Every 6th frame: broader scan in case barcode is slightly outside the box
+        const isBroad = (frameCount % 6 === 0);
         let cropX, cropY, cropW, cropH;
+
         if (isBroad) {
-          cropW = Math.round(vw * 0.85);
-          cropH = Math.round(vh * 0.60);
+          cropW = Math.round(vw * 0.88);
+          cropH = Math.round(vh * 0.65);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         } else {
-          cropW = Math.round(vw * 0.68);
-          cropH = Math.round(vh * 0.36);
-          cropX = Math.round((vw - cropW) / 2);
-          cropY = Math.round((vh - cropH) / 2);
+          const region = getScanCropRegion(scanVideo, vfBox);
+          cropX = region.cropX;
+          cropY = region.cropY;
+          cropW = region.cropW;
+          cropH = region.cropH;
         }
 
-        roiCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, ROI_W, ROI_H);
-        const imgData = roiCtx.getImageData(0, 0, ROI_W, ROI_H);
+        // Maintain true 1:1 aspect ratio! Never stretch or squish barcodes
+        let targetW = cropW;
+        let targetH = cropH;
+        if (targetW > ROI_MAX_W) {
+          const r = ROI_MAX_W / targetW;
+          targetW = ROI_MAX_W;
+          targetH = Math.round(cropH * r);
+        }
+        if (roiCanvas.width !== targetW || roiCanvas.height !== targetH) {
+          roiCanvas.width = targetW;
+          roiCanvas.height = targetH;
+        }
+
+        roiCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+        const imgData = roiCtx.getImageData(0, 0, targetW, targetH);
 
         const results = await window.zbarWasm.scanImageData(imgData);
         consecutiveErrors = 0;
@@ -1620,9 +1728,8 @@ function startZBarEngine() {
         }
       } catch (err) {
         consecutiveErrors++;
-        // If ZBar fails repeatedly, fallback to ZXing Turbo seamlessly
         if (consecutiveErrors >= 6) {
-          console.warn('ZBar WASM errors, fallback to ZXing Turbo');
+          console.warn('ZBar WASM errors, fallback to ZXing');
           return startZXingEngine();
         }
       } finally {
@@ -1653,47 +1760,53 @@ function startZXingEngine() {
 
   let lastTick = 0;
   let frameCount = 0;
-  // Faster intervals: 40ms Mac (~25fps), 50ms iPhone (~20fps)
   const MIN_FRAME_INTERVAL = isDesktop ? 40 : 50;
 
   async function zxingLoop(timestamp) {
     if (!scanning || scanVideo.paused || scanVideo.ended) return;
 
-    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2) {
+    if (timestamp - lastTick >= MIN_FRAME_INTERVAL && !isDecoding && scanVideo.readyState >= 2 && scanVideo.videoWidth > 0) {
       lastTick = timestamp;
       isDecoding = true;
       frameCount++;
 
       try {
-        const vw = scanVideo.videoWidth || 640;
-        const vh = scanVideo.videoHeight || 480;
+        const vw = scanVideo.videoWidth;
+        const vh = scanVideo.videoHeight;
 
-        // Tighter ROI = fewer pixels = faster decode
-        // Every 8th frame: broader zone for slightly off-center barcodes
-        const isBroad = (frameCount % 8 === 0);
-
+        const isBroad = (frameCount % 6 === 0);
         let cropX, cropY, cropW, cropH;
+
         if (isBroad) {
-          cropW = Math.round(vw * 0.85);
-          cropH = Math.round(vh * 0.60);
+          cropW = Math.round(vw * 0.88);
+          cropH = Math.round(vh * 0.65);
           cropX = Math.round((vw - cropW) / 2);
           cropY = Math.round((vh - cropH) / 2);
         } else {
-          cropW = Math.round(vw * 0.68);
-          cropH = Math.round(vh * 0.36);
-          cropX = Math.round((vw - cropW) / 2);
-          cropY = Math.round((vh - cropH) / 2);
+          const region = getScanCropRegion(scanVideo, vfBox);
+          cropX = region.cropX;
+          cropY = region.cropY;
+          cropW = region.cropW;
+          cropH = region.cropH;
         }
 
-        // Draw directly to the FIXED-dimension canvas (zero reallocation, zero GC pause)
-        roiCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, ROI_W, ROI_H);
+        let targetW = cropW;
+        let targetH = cropH;
+        if (targetW > ROI_MAX_W) {
+          const r = ROI_MAX_W / targetW;
+          targetW = ROI_MAX_W;
+          targetH = Math.round(cropH * r);
+        }
+        if (roiCanvas.width !== targetW || roiCanvas.height !== targetH) {
+          roiCanvas.width = targetW;
+          roiCanvas.height = targetH;
+        }
 
+        roiCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
         const lumSource = new window.ZXing.HTMLCanvasElementLuminanceSource(roiCanvas);
         let decodedText = null;
 
-        // Alternating binarizer cuts CPU in half on iPhone 8 Plus A11 chip!
-        // Even frames: HybridBinarizer (crisp printed labels)
-        // Odd frames: GlobalHistogramBinarizer (glossy, curved plastic, glare)
+        // Alternating binarizer cuts CPU in half on iPhone 8 Plus A11 chip
         const useGlobal = (frameCount % 2 === 1);
         const primaryBinarizer = useGlobal
           ? new window.ZXing.GlobalHistogramBinarizer(lumSource)
@@ -1705,8 +1818,7 @@ function startZXingEngine() {
             decodedText = res.getText();
           }
         } catch (e1) {
-          // If primary failed and every 8th frame, try the secondary binarizer as backup
-          if (frameCount % 8 === 0) {
+          if (frameCount % 6 === 0) {
             try {
               const secondaryBinarizer = useGlobal
                 ? new window.ZXing.HybridBinarizer(lumSource)
@@ -1723,7 +1835,6 @@ function startZXingEngine() {
           onScan(decodedText);
         }
       } catch (err) {
-        // Ignored frame decode error
       } finally {
         isDecoding = false;
       }
@@ -1787,10 +1898,10 @@ btnCamSwitch.onclick = async () => {
   if (!availableCameras.length) return;
   currentCamIdx = (currentCamIdx + 1) % availableCameras.length;
   const nextCam = availableCameras[currentCamIdx];
-  localStorage.setItem('kasirku_cam_id', nextCam.id);
+  localStorage.setItem('kasirku_cam_id', nextCam.deviceId);
   toast('Beralih ke: ' + (nextCam.label || ('Kamera ' + (currentCamIdx + 1))));
   await stopCam();
-  setTimeout(() => startCam(nextCam.id), 200);
+  setTimeout(() => startCam(nextCam.deviceId), 200);
 };
 
 // Snapshot Button (Captures current frame with high-contrast decode)
@@ -1802,7 +1913,8 @@ if (btnSnap) {
     scanMsg.textContent = 'Menganalisis foto…';
 
     try {
-      const vw = scanVideo.videoWidth || 640, vh = scanVideo.videoHeight || 480;
+      const vw = scanVideo.videoWidth || 640;
+      const vh = scanVideo.videoHeight || 480;
       const snapCanvas = document.createElement('canvas');
       const snapCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
 
@@ -1814,8 +1926,7 @@ if (btnSnap) {
           'none',
           'contrast(2) brightness(1.05) saturate(0)',
           'contrast(3) brightness(0.85) saturate(0)',
-          'contrast(1.6) brightness(1.2)',
-          'contrast(2.5) brightness(0.9) saturate(0) invert(1)'
+          'contrast(1.6) brightness(1.2)'
         ];
         snapCanvas.width = vw; snapCanvas.height = vh;
         for (const filter of presets) {
@@ -1838,22 +1949,26 @@ if (btnSnap) {
         }
       }
 
-      // 2. Try ZBar WASM with ROI + contrast presets (for iOS/Mac)
+      // 2. Try ZBar WASM with aspect-preserving crop & contrast presets
       if (!found && typeof window.zbarWasm !== 'undefined') {
-        const cropW = Math.round(vw * 0.85);
-        const cropH = Math.round(vh * 0.55);
-        const cropX = Math.round((vw - cropW) / 2);
-        const cropY = Math.round((vh - cropH) / 2);
-        snapCanvas.width = ROI_W;
-        snapCanvas.height = ROI_H;
+        const region = getScanCropRegion(scanVideo, vfBox);
+        let targetW = region.cropW;
+        let targetH = region.cropH;
+        if (targetW > ROI_MAX_W) {
+          const r = ROI_MAX_W / targetW;
+          targetW = ROI_MAX_W;
+          targetH = Math.round(region.cropH * r);
+        }
+        snapCanvas.width = targetW;
+        snapCanvas.height = targetH;
 
         const filters = ['none', 'contrast(1.8) brightness(1.1) saturate(0)', 'contrast(2.5) brightness(0.9) saturate(0)'];
         for (const f of filters) {
           try {
             snapCtx.filter = f;
-            snapCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, ROI_W, ROI_H);
+            snapCtx.drawImage(scanVideo, region.cropX, region.cropY, region.cropW, region.cropH, 0, 0, targetW, targetH);
             snapCtx.filter = 'none';
-            const imgData = snapCtx.getImageData(0, 0, ROI_W, ROI_H);
+            const imgData = snapCtx.getImageData(0, 0, targetW, targetH);
             const res = await window.zbarWasm.scanImageData(imgData);
             if (res && res.length > 0) {
               const sym = res[0];
@@ -1864,22 +1979,26 @@ if (btnSnap) {
         }
       }
 
-      // 3. Try ZXing with ROI + Dual Binarizers + contrast presets (fallback)
+      // 3. Try ZXing with Dual Binarizers + contrast presets (fallback)
       if (!found && typeof window.ZXing !== 'undefined') {
         const reader = getZXingMultiReader();
         if (reader) {
-          const cropW = Math.round(vw * 0.85);
-          const cropH = Math.round(vh * 0.55);
-          const cropX = Math.round((vw - cropW) / 2);
-          cropY = Math.round((vh - cropH) / 2);
-          snapCanvas.width = ROI_W;
-          snapCanvas.height = ROI_H;
+          const region = getScanCropRegion(scanVideo, vfBox);
+          let targetW = region.cropW;
+          let targetH = region.cropH;
+          if (targetW > ROI_MAX_W) {
+            const r = ROI_MAX_W / targetW;
+            targetW = ROI_MAX_W;
+            targetH = Math.round(region.cropH * r);
+          }
+          snapCanvas.width = targetW;
+          snapCanvas.height = targetH;
 
           const filters = ['none', 'contrast(1.8) brightness(1.1) saturate(0)', 'contrast(2.5) brightness(0.9) saturate(0)'];
           for (const f of filters) {
             try {
               snapCtx.filter = f;
-              snapCtx.drawImage(scanVideo, cropX, cropY, cropW, cropH, 0, 0, ROI_W, ROI_H);
+              snapCtx.drawImage(scanVideo, region.cropX, region.cropY, region.cropW, region.cropH, 0, 0, targetW, targetH);
               snapCtx.filter = 'none';
 
               const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(snapCanvas);
